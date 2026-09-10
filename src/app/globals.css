@@ -1,12 +1,64 @@
 @import "tailwindcss";
 
-:root {
-  --bg: #faf9f5;
-  --ink: #1b1c1f;
-  --accent: #f5b841;
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-paper: #f7f6f1;
+  --color-card: #ffffff;
+  --color-card-2: #efede6;
+  --color-ink: #17181b;
+  --color-ink-2: #4b4e56;
+  --color-muted: #7a7d85;
+  --color-line: #e4e2da;
+  --color-line-2: #cfcdc4;
+  --color-side: #141416;
+  --color-side-2: #202126;
+  --color-side-text: #d9d8d2;
+  --color-amber: #f5b841;
+  --color-amber-deep: #c9891a;
+  --color-amber-soft: #fbefd1;
+  --color-sky: #cfeafb;
+  --color-sky-deep: #1f6f9a;
+  --color-lilac: #e5e0f7;
+  --color-lilac-deep: #5a44a8;
+  --color-real: #2e7d4f;
+  --color-real-bg: #e3f2e8;
+  --color-seed: #6b4fbb;
+  --color-seed-bg: #ece7f8;
+  --color-model: #b8405e;
+  --color-model-bg: #f8e3e8;
+  --color-warn: #a85e22;
+  --color-warn-bg: #fbebdc;
 }
 
-body {
-  background: var(--bg);
-  color: var(--ink);
-}
+html { color-scheme: light; }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); }
+.mono { font-family: var(--font-mono); }
+.eyebrow { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); }
+.card { background: var(--color-card); border: 1px solid var(--color-line); border-radius: 6px; }
+.btn { display: inline-flex; align-items: center; gap: .4rem; border-radius: 6px; padding: .5rem .85rem; font-size: .875rem; font-weight: 600; border: 1px solid var(--color-ink); background: var(--color-card); color: var(--color-ink); cursor: pointer; }
+.btn:hover { background: var(--color-card-2); }
+.btn-primary { background: var(--color-amber); border-color: var(--color-amber); }
+.btn-primary:hover { background: #ffc85c; }
+.btn-ghost { border-color: var(--color-line-2); background: transparent; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.chip { display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .04em; padding: .22rem .45rem; border-radius: 4px; white-space: nowrap; line-height: 1; }
+.chip-real { background: var(--color-real-bg); color: var(--color-real); }
+.chip-seeded, .chip-demo { background: var(--color-seed-bg); color: var(--color-seed); }
+.chip-modelled { background: var(--color-model-bg); color: var(--color-model); }
+.chip-warn { background: var(--color-warn-bg); color: var(--color-warn); }
+.chip-neutral { background: var(--color-card-2); color: var(--color-ink-2); }
+.chip-locked { background: #f1e0e4; color: #9a3c53; }
+.tnum { font-variant-numeric: tabular-nums; }
+input, select, textarea { background: var(--color-card); border: 1px solid var(--color-line-2); border-radius: 6px; padding: .55rem .7rem; font-size: .9rem; color: var(--color-ink); width: 100%; }
+input:focus, select:focus, textarea:focus, .btn:focus-visible, a:focus-visible { outline: 2px solid var(--color-amber); outline-offset: 2px; }
+.nav-link { display: flex; align-items: center; gap: .6rem; padding: .5rem .75rem; border-radius: 6px; color: var(--color-side-text); font-size: .9rem; }
+.nav-link:hover { background: var(--color-side-2); color: #fff; }
+.nav-link[aria-current="page"] { background: var(--color-amber); color: var(--color-ink); font-weight: 600; }
+.nav-link .sq { width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid currentColor; flex: none; }
+.nav-link[aria-current="page"] .sq { background: currentColor; }
+table.data { width: 100%; border-collapse: collapse; font-size: .875rem; }
+table.data th { text-align: left; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; color: var(--color-muted); border-bottom: 1px solid var(--color-line-2); padding: .55rem .6rem; white-space: nowrap; }
+table.data td { padding: .6rem .6rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
+table.data tr:last-child td { border-bottom: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
