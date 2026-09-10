@@ -25,6 +25,13 @@ export function defaultPersona(data: Data): User | undefined {
 
 export function resolveUser(data: Data, user: User): CurrentUser {
   const role = roleFor(data, user);
+  const scope = computeScope(data, user);
+  if (role === "admin") {
+    // Org admins see the whole estate; keep their own paths, add everything else as "admin".
+    for (const b of data.bases) if (!scope.bases.has(b.id)) scope.bases.set(b.id, new Set(["admin"]));
+    for (const i of data.interfaces) if (!scope.interfaces.has(i.id)) scope.interfaces.set(i.id, new Set(["admin"]));
+    for (const w of data.workspaces) scope.workspaces.add(w.id);
+  }
   return {
     user,
     name: displayName(user),
@@ -32,7 +39,7 @@ export function resolveUser(data: Data, user: User): CurrentUser {
     isAdmin: role === "admin",
     orgUnit: orgUnitFor(user),
     external: isExternal(user),
-    scope: computeScope(data, user),
+    scope,
     groupNames: (user.groups ?? []).map((g) => data.groupById.get(g)?.name ?? g),
   };
 }

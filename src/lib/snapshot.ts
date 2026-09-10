@@ -21,12 +21,12 @@ export type Workspace = CanonRecord & {
   collaborators?: string[]; groupCollaborators?: string[]; created?: string; sourceUrl?: string; bases?: string[];
 };
 export type Base = CanonRecord & {
-  baseId?: string; workspaceId?: string; workspaceName?: string; name?: string; created?: string;
+  baseId?: string; workspaceId?: string | string[]; workspaceName?: string; name?: string; created?: string;
   rowCount?: number; sandbox?: boolean; sourceUrl?: string; collaborators?: string[]; groupCollaborators?: string[];
   sensitivity?: string; collaboratorCount?: number; interfaces?: string[]; verifiedDatasets?: string[];
 };
 export type Interface = CanonRecord & {
-  interfaceId?: string; baseId?: string; name?: string; created?: string; sourceUrl?: string;
+  interfaceId?: string; baseId?: string | string[]; name?: string; created?: string; sourceUrl?: string;
   portalCollaborators?: string[]; collaborators?: string[]; groupCollaborators?: string[];
   sensitivity?: string; collaboratorCount?: number;
 };
@@ -57,6 +57,8 @@ export type Data = {
   datasetById: Map<string, VerifiedDataset>; requestById: Map<string, RequestRow>;
   /** derived joins */
   interfacesByBase: Map<string, Interface[]>;
+  /** interface record id -> its base */
+  baseOfInterface: Map<string, Base>;
   basesByWorkspace: Map<string, Base[]>;
   /** workspace record id -> Base record ids; falls back from Bases.workspaceId when Workspaces.bases is empty */
   workspaceBaseIds: Map<string, Set<string>>;
@@ -85,22 +87,34 @@ function build(snap: Snapshot): Data {
   const baseById = index(bases);
   const workspaceById = index(workspaces);
 
-  const interfacesByBase = new Map<string, Interface[]>();
+  // Link fields hold record ids (["rec…"]); text ids ("app…", "wsp…") appear when a client uses lookups instead.
   const baseByAppId = new Map(bases.map((b) => [b.baseId ?? "", b]));
+  const workspaceByWspId = new Map(workspaces.map((w) => [w.workspaceId ?? "", w]));
+  const resolveBase = (v: unknown): Base | undefined => {
+    const key = Array.isArray(v) ? v[0] : v;
+    return typeof key === "string" ? baseById.get(key) ?? baseByAppId.get(key) : undefined;
+  };
+  const resolveWorkspace = (v: unknown): Workspace | undefined => {
+    const key = Array.isArray(v) ? v[0] : v;
+    return typeof key === "string" ? workspaceById.get(key) ?? workspaceByWspId.get(key) : undefined;
+  };
+
+  const interfacesByBase = new Map<string, Interface[]>();
+  const baseOfInterface = new Map<string, Base>();
   for (const i of interfaces) {
-    const b = i.baseId ? baseByAppId.get(i.baseId) : undefined;
+    const b = resolveBase(i.baseId);
     if (!b) continue;
+    baseOfInterface.set(i.id, b);
     const list = interfacesByBase.get(b.id) ?? [];
     list.push(i);
     interfacesByBase.set(b.id, list);
   }
 
-  const workspaceByWspId = new Map(workspaces.map((w) => [w.workspaceId ?? "", w]));
   const basesByWorkspace = new Map<string, Base[]>();
   const workspaceBaseIds = new Map<string, Set<string>>();
   for (const w of workspaces) workspaceBaseIds.set(w.id, new Set(w.bases ?? []));
   for (const b of bases) {
-    const w = b.workspaceId ? workspaceByWspId.get(b.workspaceId) : undefined;
+    const w = resolveWorkspace(b.workspaceId);
     if (!w) continue;
     const list = basesByWorkspace.get(w.id) ?? [];
     list.push(b);
@@ -125,7 +139,7 @@ function build(snap: Snapshot): Data {
     users, groups, workspaces, bases, interfaces, datasets, requests, votes,
     userById: index(users), userByEmail, groupById: index(groups), workspaceById, baseById,
     interfaceById: index(interfaces), datasetById: index(datasets), requestById: index(requests),
-    interfacesByBase, basesByWorkspace, workspaceBaseIds, votesByRequest,
+    interfacesByBase, baseOfInterface, basesByWorkspace, workspaceBaseIds, votesByRequest,
   };
 }
 

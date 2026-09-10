@@ -63,7 +63,11 @@ function canonicalize(map: TableMap, rec: { id: string; createdTime: string; fie
   for (const [canon, f] of Object.entries(map.fields)) {
     const v = rec.fields[f.id];
     if (f.type === "checkbox") out[canon] = v === true;
-    else if (v !== undefined) out[canon] = v;
+    else if (f.type === "multipleLookupValues" && Array.isArray(v)) {
+      // Lookups arrive as arrays even for single values (Workspace Name, Base ID on interfaces).
+      const flat = v.filter((x) => x !== null && x !== undefined);
+      out[canon] = flat.length === 1 ? flat[0] : flat.length === 0 ? undefined : flat.every((x) => typeof x === "string") ? flat.join(", ") : flat;
+    } else if (v !== undefined) out[canon] = v;
   }
   return out;
 }

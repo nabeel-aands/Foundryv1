@@ -38,8 +38,8 @@ export function searchCatalog(data: Data, scope: Scope, query: string, limit = 8
   for (const i of data.interfaces) {
     const s = score(i.name ?? "", toks);
     if (s > 0) {
-      const base = data.bases.find((b) => b.baseId === i.baseId);
-      out.push({ kind: "interface", id: i.id, title: i.name ?? i.id, subtitle: `Interface · ${base?.name ?? i.baseId ?? ""}`, score: s, inScope: scope.interfaces.has(i.id) });
+      const base = data.baseOfInterface.get(i.id);
+      out.push({ kind: "interface", id: i.id, title: i.name ?? i.id, subtitle: `Interface · ${base?.name ?? "unknown base"}`, score: s, inScope: scope.interfaces.has(i.id) });
     }
   }
   for (const d of data.datasets) {
