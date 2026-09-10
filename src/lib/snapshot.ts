@@ -31,7 +31,7 @@ export type Interface = CanonRecord & {
   sensitivity?: string; collaboratorCount?: number;
 };
 export type VerifiedDataset = CanonRecord & {
-  name?: string; description?: string; audience?: string[]; orgUnit?: string; owner?: Collaborator;
+  name?: string; description?: string; audience?: string[]; orgUnit?: string; owner?: Collaborator | string;
   status?: string; verified?: boolean; notes?: string; publishedBy?: string; sourceBase?: string;
   sourceTable?: string; sourceView?: string; catalogUpdated?: string; basesUsing?: string[]; lastReviewed?: string;
 };
@@ -153,6 +153,14 @@ export function displayName(u: User | undefined): string {
   if (!u) return "Unknown";
   const n = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
   return n || u.email || u.userId || u.id;
+}
+
+/** Verified Datasets.Owner is plain text in this base; other clients may use a collaborator field. */
+export function stewardName(d: VerifiedDataset): string | undefined {
+  const o = d.owner;
+  if (!o) return undefined;
+  if (typeof o === "string") return o.trim() || undefined;
+  return o.name ?? o.email ?? undefined;
 }
 
 export function emailDomain(email?: string): string {

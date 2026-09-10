@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { foundryConfig } from "../../../foundry.config";
 import { getCurrentUser } from "@/lib/persona";
-import { getData, type Base } from "@/lib/snapshot";
+import { getData, stewardName, type Base } from "@/lib/snapshot";
 import { isSandboxWorkspace } from "@/lib/scope";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
@@ -139,7 +139,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
               {data.datasets.map((d) => (
                 <tr key={d.id}>
                   <td><div className="font-medium">{d.name}</div><div className="text-xs text-muted max-w-md">{d.description}</div></td>
-                  <td>{d.owner ? <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-real" />{d.owner.name ?? d.owner.email}</span> : <span className="text-muted">unowned</span>}</td>
+                  <td>{stewardName(d) ? <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-real" />{stewardName(d)}</span> : <span className="text-muted">unowned</span>}</td>
                   <td className="text-ink-2">{d.orgUnit}</td>
                   <td className="text-xs text-ink-2">{(d.audience ?? []).join(", ")}</td>
                   <td className="flex gap-1">{d.verified && <Chip kind="real">Verified</Chip>}<Chip kind="neutral">{d.status ?? "—"}</Chip></td>

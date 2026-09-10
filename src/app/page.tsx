@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { foundryConfig } from "../../foundry.config";
 import { getCurrentUser } from "@/lib/persona";
-import { getData } from "@/lib/snapshot";
+import { getData, stewardName } from "@/lib/snapshot";
 import { rankRequests } from "@/lib/requests";
 import { Chip } from "@/components/Chip";
 
@@ -59,10 +59,10 @@ export default async function Home() {
           <ul className="mt-3 divide-y divide-line">
             {data.datasets.slice(0, 6).map((d) => (
               <li key={d.id} className="py-2 flex items-center gap-3">
-                <span className={`w-2 h-2 rounded-full flex-none ${d.owner ? "bg-real" : "bg-line-2"}`} title={d.owner ? `Steward: ${d.owner.name ?? d.owner.email}` : "No steward assigned"} />
+                <span className={`w-2 h-2 rounded-full flex-none ${stewardName(d) ? "bg-real" : "bg-line-2"}`} title={stewardName(d) ? `Steward: ${stewardName(d)}` : "No steward assigned"} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{d.name}</div>
-                  <div className="text-xs text-muted truncate">{d.orgUnit ?? "No org unit"} · {d.owner?.name ?? "unowned"} · {(d.basesUsing ?? []).length} bases use it</div>
+                  <div className="text-xs text-muted truncate">{d.orgUnit ?? "No org unit"} · {stewardName(d) ?? "unowned"} · {(d.basesUsing ?? []).length} bases use it</div>
                 </div>
                 {d.verified && <Chip kind="real">Verified</Chip>}
               </li>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { foundryConfig } from "../../../foundry.config";
 import { getCurrentUser } from "@/lib/persona";
-import { displayName, getData } from "@/lib/snapshot";
+import { displayName, getData, stewardName } from "@/lib/snapshot";
 import { isExternal, isSandboxWorkspace } from "@/lib/scope";
 import { Tile } from "@/components/Tile";
 import { Chip, SensitivityChip } from "@/components/Chip";
@@ -54,7 +54,7 @@ export default async function Admin() {
         <Tile label="Groups" value={data.groups.length} sub={data.groups.map((g) => `${g.name} ${g.members?.length ?? 0}`).join(" · ")} />
         <Tile label="Active without 2FA" value={has2fa ? no2fa.length : "—"} sub={has2fa ? "org members only" : "2FA field not in this sync"} kind={has2fa ? "real" : "modelled"} />
         <Tile label="Inactive 90+ days" value={hasLastActive ? inactive90.length : "—"} sub={hasLastActive ? "active accounts with no recent activity" : "Last Active not in this sync"} kind={hasLastActive ? "real" : "modelled"} />
-        <Tile label="Seat types" value={[...seatTypes.entries()].filter(([k]) => k !== "unset").reduce((s, [, v]) => s + v, 0)} sub={[...seatTypes.entries()].map(([k, v]) => `${k} ${v}`).join(" · ")} />
+        <Tile label="Seat types" value={seatTypes.has("unset") && seatTypes.size === 1 ? "—" : [...seatTypes.entries()].filter(([k]) => k !== "unset").reduce((s, [, v]) => s + v, 0)} sub={seatTypes.has("unset") && seatTypes.size === 1 ? "Seat Type is empty for every user in this sync" : [...seatTypes.entries()].map(([k, v]) => `${k} ${v}`).join(" · ")} kind={seatTypes.has("unset") && seatTypes.size === 1 ? "modelled" : "real"} />
         <Tile label="Seat utilisation" value="—" sub="purchased seat total is not in any API; set limits in config" kind="modelled" derived="config.limits.seatsLicensed (unset)" />
       </div>
 
@@ -65,7 +65,7 @@ export default async function Admin() {
         <Tile label="Interfaces" value={data.interfaces.length} sub={`${data.interfaces.filter((i) => (i.portalCollaborators ?? []).length > 0).length} with portal collaborators`} />
         <Tile label="Records in estate" value={rows.toLocaleString()} sub="sum of Row Count across bases" />
         <Tile label="Classification coverage" value={`${classified}/${data.bases.length}`} sub={classified ? "bases with a Sensitivity value" : "no base has a Sensitivity value yet; set it in Airtable"} />
-        <Tile label="Verified datasets" value={`${data.datasets.filter((d) => d.verified).length}/${data.datasets.length}`} sub={`${data.datasets.filter((d) => !d.owner).length} without a steward`} />
+        <Tile label="Verified datasets" value={`${data.datasets.filter((d) => d.verified).length}/${data.datasets.length}`} sub={`${data.datasets.filter((d) => !stewardName(d)).length} without a steward`} />
         <Tile label="Automation runs" value="—" sub="no API exposes automation run counts" kind="modelled" derived="nothing yet" />
         <Tile label="AI credits" value="—" sub="derivable from audit-log events in v2 (Enterprise API)" kind="modelled" derived="audit log aiCreditConsumed (v2)" />
       </div>
@@ -77,7 +77,7 @@ export default async function Admin() {
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">{basesWithExternal.length} bases have external collaborators</div><div className="text-xs text-muted">{basesWithExternal.slice(0, 3).map((x) => `${x.b.name} (${x.n})`).join(" · ")}</div></div></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-warn flex-none" /><div className="flex-1"><div className="font-medium">{data.bases.length - classified} bases have no sensitivity flag</div><div className="text-xs text-muted">Set Sensitivity on the Airtable Bases table; the coverage tile updates on refresh.</div></div><OpenInAirtable href={`https://airtable.com/${process.env.AIRTABLE_BASE_ID ?? ""}`} label="Classify in Airtable" small /></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-amber flex-none" /><div className="flex-1"><div className="font-medium">{data.requests.filter((r) => /submitted/i.test(r.status ?? "")).length} requests awaiting first response</div><div className="text-xs text-muted">Submitted and not yet In Review.</div></div></li>
-            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-line-2 flex-none" /><div className="flex-1"><div className="font-medium">{data.datasets.filter((d) => !d.owner).length} verified datasets have no steward</div><div className="text-xs text-muted">Assign an Owner in the Verified Datasets table.</div></div></li>
+            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-line-2 flex-none" /><div className="flex-1"><div className="font-medium">{data.datasets.filter((d) => !stewardName(d)).length} verified datasets have no steward</div><div className="text-xs text-muted">Assign an Owner in the Verified Datasets table.</div></div></li>
           </ul>
         </section>
         <section className="card">

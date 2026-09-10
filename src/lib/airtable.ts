@@ -83,6 +83,13 @@ export class Airtable {
     return res.records;
   }
 
+  /** Delete up to 10 records. Only ever used on Foundry-owned tables for seed rows. */
+  async deleteRecords(tableId: string, ids: string[]): Promise<void> {
+    if (ids.length > 10) throw new Error("deleteRecords: max 10 per call");
+    const qs = ids.map((id) => `records[]=${encodeURIComponent(id)}`).join("&");
+    await this.request(`/${this.baseId}/${tableId}?${qs}`, { method: "DELETE" });
+  }
+
   /** PATCH (never PUT) up to 10 records. Fields keyed by field ID. */
   async updateRecords(tableId: string, records: { id: string; fields: Record<string, unknown> }[]): Promise<AirtableRecord[]> {
     if (records.length > 10) throw new Error("updateRecords: max 10 per call");

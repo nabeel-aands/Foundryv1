@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const data = getData();
   const me = await getCurrentUser();
   const demo = isDemoMode();
-  const toOpt = (u: (typeof data.users)[number]) => ({ id: u.id, label: displayName(u), detail: `${u.admin ? "admin" : (u.accountType ?? "member")}${u.email ? " · " + u.email : ""}` });
+  const toOpt = (u: (typeof data.users)[number]) => ({ id: u.id, label: displayName(u), detail: u.admin ? "admin" : (u.accountType ?? "member").toLowerCase() });
   const nav = [
     { href: "/", label: "Home" },
     { href: "/build", label: "Build something" },

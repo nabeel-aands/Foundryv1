@@ -14,6 +14,11 @@ export type RankedRequest = {
   visibleGroupNames: string[];
 };
 
+/** Rows created by hand in Airtable with no title are placeholders, not requests. */
+export function isRealRequest(r: RequestRow): boolean {
+  return !!(r.title && r.title.trim());
+}
+
 /** NDA rule: hidden unless admin, requester, or member of a listed group. */
 export function canSee(req: RequestRow, me: CurrentUser): boolean {
   if (!req.nda) return true;
@@ -23,7 +28,7 @@ export function canSee(req: RequestRow, me: CurrentUser): boolean {
 }
 
 export function activeVotes(data: Data, requestId: string): VoteRow[] {
-  return (data.votesByRequest.get(requestId) ?? []).filter((v) => v.active);
+  return (data.votesByRequest.get(requestId) ?? []).filter((v) => v.active && (v.voter ?? []).length > 0);
 }
 
 export function myActiveVotes(data: Data, me: User): VoteRow[] {
@@ -33,7 +38,7 @@ export function myActiveVotes(data: Data, me: User): VoteRow[] {
 export function rankRequests(data: Data, me: CurrentUser): RankedRequest[] {
   const mine = new Set(myActiveVotes(data, me.user).map((v) => v.request?.[0]));
   return data.requests
-    .filter((r) => canSee(r, me))
+    .filter((r) => isRealRequest(r) && canSee(r, me))
     .map((r) => ({
       row: r,
       votes: activeVotes(data, r.id).length,
@@ -107,17 +112,17 @@ export type NewRequest = {
   relatedBase?: string;
 };
 
-export async function createRequest(me: CurrentUser, input: NewRequest): Promise<string> {
+export function requestFields(requesterId: string, orgUnit: string, input: NewRequest, opts: { status?: string; recordSource?: string } = {}): Record<string, unknown> {
   const fields: Record<string, unknown> = {
     [fieldId("requests", "title")]: input.title,
-    [fieldId("requests", "requester")]: [me.user.id],
+    [fieldId("requests", "requester")]: [requesterId],
     [fieldId("requests", "nda")]: input.nda,
   };
   const set = (canon: string, v: unknown) => {
     if (v !== undefined && v !== null && v !== "" && hasField("requests", canon)) fields[fieldId("requests", canon)] = v;
   };
   set("description", input.description);
-  set("orgUnit", me.orgUnit.value);
+  set("orgUnit", orgUnit);
   set("teamSize", input.teamSize);
   set("timeline", input.timeline);
   set("budget", input.budget);
@@ -125,9 +130,13 @@ export async function createRequest(me: CurrentUser, input: NewRequest): Promise
   if (input.relatedBase) set("relatedBase", [input.relatedBase]);
   if (input.useCase) set("useCase", pickChoice("requests", "useCase", [input.useCase, "Other"]));
   if (input.path) set("path", pickChoice("requests", "path", [input.path]));
-  set("status", pickChoice("requests", "status", ["Submitted", "Proposed"]));
-  set("recordSource", pickChoice("requests", "recordSource", ["Demo", "User-entered"]));
+  set("status", pickChoice("requests", "status", [opts.status ?? "Submitted", "Proposed"]));
+  set("recordSource", pickChoice("requests", "recordSource", [opts.recordSource ?? "Demo", "User-entered"]));
+  return fields;
+}
 
+export async function createRequest(me: CurrentUser, input: NewRequest): Promise<string> {
+  const fields = requestFields(me.user.id, me.orgUnit.value, input);
   const at = Airtable.fromEnv();
   const [rec] = await at.createRecords(tableId("requests"), [{ fields }]);
   await refreshFoundryTables();
