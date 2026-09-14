@@ -44,15 +44,6 @@ npm run dev                 # http://127.0.0.1:3000
 7. Every number carries a Real, Seeded, Demo or Modelled chip computed from its source.
 8. The persona switcher only works with `FOUNDRY_DEMO=1` outside production.
 
-## Ten-minute demo
-
-1. **Home as an admin.** Real counts in the strip with the fetch time; three path cards; verified datasets with steward dots; roadmap top five.
-2. **Switch persona** (footer) to a walmart.com guest: the Library shrinks from 593 bases to their training bases, votes read 10 of 10, the admin menu disappears, and the NDA-flagged "Headcount planning" leaves the roadmap.
-3. **Build something:** describe "supplier onboarding tracker", see the matches (existing proposal, a base, interfaces), pick a path, submit. The request appears on the roadmap and in the Requests table.
-4. **Roadmap:** vote, watch the rank and the quota move, retract. Open the Votes table in Airtable to show the row.
-5. **Ask Foundry:** "meal planning" as the guest versus as the admin. Same question, different answer, scoped by access.
-6. **Governance console** as admin: register and estate tiles, Needs your attention, largest bases, Refresh from Airtable.
-7. Close on **Open in Airtable**: Airtable stays the system of record.
 
 ## Known assumptions
 
