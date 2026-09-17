@@ -41,6 +41,18 @@ export const foundryConfig = {
     teamLabel: "A&S",
   },
   sensitivity: { levels: ["Public", "Internal", "Confidential", "Restricted"] },
+  /**
+   * Ask Foundry. Runs on Claude when ANTHROPIC_API_KEY is set, otherwise keyword search.
+   * Haiku 4.5 for development (well under a cent per question); switch to "claude-sonnet-5" for demos.
+   */
+  assistant: {
+    model: "claude-haiku-4-5",
+    maxToolCalls: 6,
+    maxTokens: 1000,
+    /** effort applies to Sonnet/Opus/Fable only; ignored on Haiku */
+    effort: "low" as "low" | "medium" | "high",
+    cacheMinutes: 10,
+  },
   /** Emails offered as quick picks in the persona switcher. Empty = auto-pick one per role. */
   personas: { quickPicks: [] as string[] },
   urls: {
