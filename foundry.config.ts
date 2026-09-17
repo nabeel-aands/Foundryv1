@@ -52,6 +52,10 @@ export const foundryConfig = {
     /** effort applies to Sonnet/Opus/Fable only; ignored on Haiku */
     effort: "low" as "low" | "medium" | "high",
     cacheMinutes: 10,
+    /** Chat mode: turns kept per conversation, per-persona hourly message budget, trim threshold. */
+    maxTurns: 20,
+    messagesPerHour: 30,
+    trimAtInputTokens: 40000,
   },
   /** Emails offered as quick picks in the persona switcher. Empty = auto-pick one per role. */
   personas: { quickPicks: [] as string[] },
