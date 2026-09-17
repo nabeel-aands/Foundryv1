@@ -16,6 +16,21 @@ async function takeSlot(): Promise<void> {
   if (at > now) await new Promise((r) => setTimeout(r, at - now));
 }
 
+export type WebhookSpecification = {
+  options: { filters: { dataTypes: ("tableData" | "tableFields" | "tableMetadata")[]; recordChangeScope?: string } };
+};
+export type WebhookCreated = { id: string; macSecretBase64: string; expirationTime: string };
+export type WebhookInfo = {
+  id: string; notificationUrl: string | null; expirationTime?: string; cursorForNextPayload: number;
+  isHookEnabled: boolean; areNotificationsEnabled: boolean; lastSuccessfulNotificationTime: string | null;
+  specification: WebhookSpecification;
+};
+export type WebhookPayload = {
+  timestamp: string; baseTransactionNumber: number; payloadFormat: string;
+  changedTablesById?: Record<string, unknown>; error?: boolean; code?: string;
+};
+export type WebhookPayloadPage = { payloads: WebhookPayload[]; cursor: number; mightHaveMore: boolean };
+
 export class AirtableError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -88,6 +103,34 @@ export class Airtable {
     if (ids.length > 10) throw new Error("deleteRecords: max 10 per call");
     const qs = ids.map((id) => `records[]=${encodeURIComponent(id)}`).join("&");
     await this.request(`/${this.baseId}/${tableId}?${qs}`, { method: "DELETE" });
+  }
+
+  /* ---------- webhooks (all count toward the same per-base rate limit) ---------- */
+
+  /** Create a base-wide webhook. Requires PAT scope webhook:manage. */
+  createWebhook(spec: WebhookSpecification, notificationUrl?: string): Promise<WebhookCreated> {
+    return this.request(`/bases/${this.baseId}/webhooks`, {
+      method: "POST",
+      body: JSON.stringify({ specification: spec, ...(notificationUrl ? { notificationUrl } : {}) }),
+    });
+  }
+
+  listWebhooks(): Promise<{ webhooks: WebhookInfo[] }> {
+    return this.request(`/bases/${this.baseId}/webhooks`);
+  }
+
+  /** One page of payloads. Calling this also refreshes the webhook's expiration. */
+  listWebhookPayloads(webhookId: string, cursor?: number): Promise<WebhookPayloadPage> {
+    const qs = cursor ? `?cursor=${cursor}` : "";
+    return this.request(`/bases/${this.baseId}/webhooks/${webhookId}/payloads${qs}`);
+  }
+
+  refreshWebhook(webhookId: string): Promise<{ expirationTime: string }> {
+    return this.request(`/bases/${this.baseId}/webhooks/${webhookId}/refresh`, { method: "POST" });
+  }
+
+  deleteWebhook(webhookId: string): Promise<void> {
+    return this.request(`/bases/${this.baseId}/webhooks/${webhookId}`, { method: "DELETE" });
   }
 
   /** PATCH (never PUT) up to 10 records. Fields keyed by field ID. */

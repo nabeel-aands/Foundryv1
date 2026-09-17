@@ -120,6 +120,31 @@ Check: the strip at the top shows the real counts with a green `Real` chip and t
   base to see rows appear. Retracting a vote unticks `Active`; nothing is deleted.
 - A ten-minute demo script and the rules the code follows are in `README.md`.
 
+## 6b. Live refresh (optional)
+
+The app re-pulls everything every `SYNC_INTERVAL_MINUTES` (default 15, `0` disables) while it runs.
+For near-instant updates, register an Airtable webhook — the app then polls its payloads every
+`WEBHOOK_POLL_SECONDS` (default 30) and refreshes only the tables that changed:
+
+```bash
+npm run webhook -- create
+```
+
+This needs the `webhook:manage` scope on the PAT (add it at https://airtable.com/create/tokens).
+State is stored in `data/webhook.json` (git-ignored). `npm run webhook -- status` shows the
+expiration (payload polling keeps extending it); `npm run webhook -- delete` removes it.
+A deployed instance can instead receive pushes: create with
+`--url https://host/api/webhooks/airtable`; the handler verifies the HMAC signature.
+Open pages notice new data within about 15 seconds and refresh themselves.
+
+## 6c. Access requests
+
+The Access Requests table is created by hand in the base (see `docs/PLAN-v1.1.md` for the field
+list). The Status single select must have the choices **Pending, Approved, Denied, Granted** —
+the API cannot add options to an existing select, so set them in the Airtable UI, then run
+`npm run sync`. Grant method and Record Source are optional fields; without Record Source the
+seeder skips this table.
+
 ## 7. Troubleshooting
 
 | Symptom | Fix |
