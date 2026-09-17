@@ -75,11 +75,13 @@ Table name: **Access Requests**
 | Approver | Link to Airtable Users | single |
 | Decision at | Date (with time) | |
 | Decision note | Long text | |
-| Grant method | Single select: Manual, Enterprise API | |
-| Record Source | Single select: Seed, Demo, User-entered | |
+| Grant method | Single select: Manual, Enterprise API | **optional** — if absent, the UI shows the constant "Manual" and no value is written |
+| Record Source | Single select: Seed, Demo, User-entered | **optional but recommended** — without it, rows carry no Seeded/Demo chip and `seed --wipe` must skip this table (log a warning) |
 | Requested at | Created time | |
 
 Sensitivity is not stored on the request; it is read from the linked base or interface at render time (inherited).
+
+The table as first created by Nabeel omits Grant method and Record Source. Code must use `hasField("accessRequests", ...)` before writing or reading either, exactly as `src/lib/requests.ts` does for `recordSource`. Do not add them to `REQUIRED_FIELDS`.
 
 ### Design
 - **Aliases:** add `accessRequests` to `TableKey`, `TABLE_KEYS`, `FOUNDRY_TABLES`, `FIELD_ALIASES` and `REQUIRED_FIELDS` in `src/lib/fields.ts`; add `accessRequests: "Access Requests"` to `foundryConfig.tables`. Add the `AccessRequestRow` type and `accessRequests` array plus `accessRequestById` index to `src/lib/snapshot.ts`.
