@@ -6,6 +6,7 @@ import { isDemoMode } from "@/lib/env";
 import { getCurrentUser, PERSONA_COOKIE } from "@/lib/persona";
 import { getData, invalidateSnapshot } from "@/lib/snapshot";
 import { castVote, createRequest, retractVote } from "@/lib/requests";
+import { decideAccess, requestAccess as requestAccessDomain } from "@/lib/access";
 import { runSync } from "@/lib/sync";
 
 export async function setPersona(formData: FormData): Promise<void> {
@@ -57,6 +58,28 @@ export async function submitRequest(formData: FormData): Promise<void> {
   }
   revalidatePath("/", "layout");
   redirect("/roadmap?msg=" + encodeURIComponent("Request submitted. It is now in Airtable and on the roadmap."));
+}
+
+export async function requestAccess(formData: FormData): Promise<void> {
+  const back = String(formData.get("back") ?? "/library");
+  const me = await getCurrentUser();
+  const r = await requestAccessDomain(getData(), me, {
+    baseId: String(formData.get("baseId") ?? "") || undefined,
+    interfaceId: String(formData.get("interfaceId") ?? "") || undefined,
+    permission: String(formData.get("permission") ?? "Read"),
+    justification: String(formData.get("justification") ?? ""),
+  }).catch((e: Error) => ({ ok: false as const, reason: e.message }));
+  revalidatePath("/", "layout");
+  redirect(`${back}${back.includes("?") ? "&" : "?"}msg=${encodeURIComponent(r.ok ? "Access request submitted. An admin will review it." : r.reason)}`);
+}
+
+export async function decide(formData: FormData): Promise<void> {
+  const me = await getCurrentUser();
+  const decision = String(formData.get("decision") ?? "") === "Approved" ? "Approved" as const : "Denied" as const;
+  const r = await decideAccess(getData(), me, String(formData.get("requestId") ?? ""), decision, String(formData.get("note") ?? ""))
+    .catch((e: Error) => ({ ok: false as const, reason: e.message }));
+  revalidatePath("/", "layout");
+  redirect(`/admin/access?msg=${encodeURIComponent(r.ok ? `Request ${decision.toLowerCase()}. ${decision === "Approved" ? "Now grant it in Airtable (Grant method: Manual)." : "The requester sees the note on their Roadmap."}` : r.reason)}`);
 }
 
 export async function refreshAll(): Promise<void> {

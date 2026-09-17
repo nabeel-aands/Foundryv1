@@ -3,6 +3,7 @@ import { foundryConfig } from "../../../foundry.config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData } from "@/lib/snapshot";
 import { myActiveVotes, rankRequests } from "@/lib/requests";
+import { myRequests, resourceName } from "@/lib/access";
 import { labelForSource } from "@/lib/labels";
 import { Chip } from "@/components/Chip";
 import { retract, vote } from "../actions";
@@ -15,6 +16,7 @@ export default async function Roadmap({ searchParams }: { searchParams: Promise<
   const used = myActiveVotes(data, me.user).length;
   const left = Math.max(0, foundryConfig.votes.quota - used);
   const mine = data.requests.filter((r) => (r.requester ?? []).includes(me.user.id));
+  const myAccess = myRequests(data, me);
   const useCases = [...new Set(data.requests.map((r) => r.useCase).filter(Boolean))] as string[];
   const statuses = [...new Set(data.requests.map((r) => r.status).filter(Boolean))] as string[];
   const back = `/roadmap${useCase || status ? `?useCase=${encodeURIComponent(useCase)}&status=${encodeURIComponent(status)}` : ""}`;
@@ -80,6 +82,21 @@ export default async function Roadmap({ searchParams }: { searchParams: Promise<
             <ul className="mt-2 divide-y divide-line text-sm">
               {mine.map((r) => <li key={r.id} className="py-1.5 flex justify-between gap-2"><span className="truncate">{r.title}</span><span className="text-muted text-xs whitespace-nowrap">{r.status}</span></li>)}
               {!mine.length && <li className="py-1.5 text-muted text-xs">None yet.</li>}
+            </ul>
+          </div>
+          <div className="card p-4">
+            <div className="font-semibold text-sm">Your access requests</div>
+            <ul className="mt-2 divide-y divide-line text-sm">
+              {myAccess.map((r) => {
+                const s = (r.status ?? "Pending").toLowerCase();
+                return (
+                  <li key={r.id} className="py-1.5 flex justify-between items-center gap-2">
+                    <span className="truncate" title={r.decisionNote ? `Note: ${r.decisionNote}` : undefined}>{resourceName(data, r)}</span>
+                    <Chip kind={s === "approved" || s === "granted" ? "real" : s === "denied" ? "modelled" : "neutral"}>{r.status ?? "Pending"}</Chip>
+                  </li>
+                );
+              })}
+              {!myAccess.length && <li className="py-1.5 text-muted text-xs">None yet. Locked items in the Library have a Request access button.</li>}
             </ul>
           </div>
           <div className="card p-4 !bg-sky">

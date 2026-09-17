@@ -6,6 +6,8 @@ import { searchCatalog } from "@/lib/search";
 import { choicesFor } from "@/lib/schema";
 import { isSandboxWorkspace } from "@/lib/scope";
 import { Chip } from "@/components/Chip";
+import { RequestAccess } from "@/components/RequestAccess";
+import { accessRequestsAvailable, pendingRequestFor } from "@/lib/access";
 import { submitRequest } from "../actions";
 
 type SP = { q?: string; step?: string; path?: string; base?: string; msg?: string };
@@ -72,7 +74,20 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
                         {m.kind === "request" && <Link className="btn btn-ghost !text-xs" href="/roadmap">Upvote</Link>}
                         {m.kind === "base" && <Link className="btn !text-xs" href={link({ step: "3", path: "Existing App", base: m.id })}>Use this</Link>}
                       </div>
-                    ) : <Chip kind="locked">Access required</Chip>}
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Chip kind="locked">Access required</Chip>
+                        {(m.kind === "base" || m.kind === "interface") && (
+                          <RequestAccess
+                            baseId={m.kind === "base" ? m.id : undefined}
+                            interfaceId={m.kind === "interface" ? m.id : undefined}
+                            back={link({})} available={accessRequestsAvailable()}
+                            pending={!!pendingRequestFor(data, me.user.id, m.kind === "base" ? { baseId: m.id } : { interfaceId: m.id })}
+                            small
+                          />
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}

@@ -43,18 +43,25 @@ export type RequestRow = CanonRecord & {
 export type VoteRow = CanonRecord & {
   request?: string[]; voter?: string[]; active: boolean; recordSource?: string; votedAt?: string;
 };
+export type AccessRequestRow = CanonRecord & {
+  request?: number; requester?: string[]; base?: string[]; interface?: string[];
+  requestedPermission?: string; justification?: string; requesterOrgUnit?: string; status?: string;
+  approver?: string[]; decisionAt?: string; decisionNote?: string; grantMethod?: string;
+  recordSource?: string; requestedAt?: string;
+};
 
 export type Data = {
   fetchedAt: string;
   counts: Snapshot["counts"];
   warnings: string[];
   users: User[]; groups: Group[]; workspaces: Workspace[]; bases: Base[]; interfaces: Interface[];
-  datasets: VerifiedDataset[]; requests: RequestRow[]; votes: VoteRow[];
+  datasets: VerifiedDataset[]; requests: RequestRow[]; votes: VoteRow[]; accessRequests: AccessRequestRow[];
   /** indexes by Airtable record id */
   userById: Map<string, User>; userByEmail: Map<string, User>;
   groupById: Map<string, Group>; workspaceById: Map<string, Workspace>;
   baseById: Map<string, Base>; interfaceById: Map<string, Interface>;
   datasetById: Map<string, VerifiedDataset>; requestById: Map<string, RequestRow>;
+  accessRequestById: Map<string, AccessRequestRow>;
   /** derived joins */
   interfacesByBase: Map<string, Interface[]>;
   /** interface record id -> its base */
@@ -83,6 +90,7 @@ function build(snap: Snapshot): Data {
   const datasets = (snap.tables.verifiedDatasets ?? []) as VerifiedDataset[];
   const requests = (snap.tables.requests ?? []) as RequestRow[];
   const votes = (snap.tables.votes ?? []) as VoteRow[];
+  const accessRequests = (snap.tables.accessRequests ?? []) as AccessRequestRow[];
 
   const baseById = index(bases);
   const workspaceById = index(workspaces);
@@ -136,9 +144,10 @@ function build(snap: Snapshot): Data {
 
   return {
     fetchedAt: snap.fetchedAt, counts: snap.counts, warnings: snap.warnings,
-    users, groups, workspaces, bases, interfaces, datasets, requests, votes,
+    users, groups, workspaces, bases, interfaces, datasets, requests, votes, accessRequests,
     userById: index(users), userByEmail, groupById: index(groups), workspaceById, baseById,
     interfaceById: index(interfaces), datasetById: index(datasets), requestById: index(requests),
+    accessRequestById: index(accessRequests),
     interfacesByBase, baseOfInterface, basesByWorkspace, workspaceBaseIds, votesByRequest,
   };
 }

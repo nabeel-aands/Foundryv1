@@ -6,12 +6,14 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { requestAccess } from "@/app/actions";
 import { Chip } from "./Chip";
 
 type Source = { kind: string; id: string; title: string; subtitle: string; inScope: boolean; href?: string };
 type ToolChip = { name: string; input?: Record<string, unknown>; resultCount?: number; ms?: number; running: boolean };
 type Draft = { title: string; description: string; useCase?: string };
-type Msg = { role: "user" | "assistant"; text: string; tools: ToolChip[]; error?: string; draft?: Draft };
+type AccessDraft = { kind: "base" | "interface"; id: string; name: string; workspace?: string; sensitivity: string; reason: string };
+type Msg = { role: "user" | "assistant"; text: string; tools: ToolChip[]; error?: string; draft?: Draft; accessDraft?: AccessDraft };
 type Usage = { inputTokens: number; outputTokens: number; cacheRead: number; iterations: number; ms: number };
 
 export type AskChatProps = {
@@ -20,6 +22,8 @@ export type AskChatProps = {
   model: string;
   starters: string[];
   scope: { basesInScope: number; basesInEstate: number; datasets: number; visibleRequests: number; hiddenRequests: number; role: string; orgUnit: string; groups: string[]; external: boolean };
+  pendingAccess: number;
+  accessAvailable: boolean;
 };
 
 /** Render **bold** and `code` spans from model text without a markdown library. */
@@ -69,7 +73,7 @@ async function readSse(res: Response, onEvent: (event: string, data: Record<stri
   }
 }
 
-export function AskChat({ personaId, mode, model, starters, scope }: AskChatProps) {
+export function AskChat({ personaId, mode, model, starters, scope, pendingAccess, accessAvailable }: AskChatProps) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -133,6 +137,8 @@ export function AskChat({ personaId, mode, model, starters, scope }: AskChatProp
           if (u) setTotalTokens((t) => t + u.inputTokens + u.outputTokens);
           const draft = data.draft as Draft | undefined;
           if (draft?.title) patchLast((m) => ({ ...m, draft }));
+          const accessDraft = data.accessDraft as AccessDraft | undefined;
+          if (accessDraft?.id) patchLast((m) => ({ ...m, accessDraft }));
         }
       });
     } catch (e) {
@@ -171,6 +177,28 @@ export function AskChat({ personaId, mode, model, starters, scope }: AskChatProp
                 {m.text ? <AssistantText text={m.text} /> : !m.error && <span className="text-muted text-sm animate-pulse">{m.tools.some((t) => t.running) ? "Looking things up…" : "Thinking…"}</span>}
                 {m.error && <div className="mt-2 text-xs text-model">{m.error}</div>}
               </div>
+              {m.accessDraft && (
+                <div className="card p-4 !bg-sky mt-2">
+                  <div className="eyebrow">Access request draft · not submitted</div>
+                  <div className="font-semibold mt-1">{m.accessDraft.name}</div>
+                  <div className="text-xs text-muted">{m.accessDraft.kind} · {m.accessDraft.workspace ?? ""} · {m.accessDraft.sensitivity}</div>
+                  {accessAvailable ? (
+                    <form action={requestAccess} className="mt-2 flex flex-col gap-2 text-xs">
+                      {m.accessDraft.kind === "base"
+                        ? <input type="hidden" name="baseId" value={m.accessDraft.id} />
+                        : <input type="hidden" name="interfaceId" value={m.accessDraft.id} />}
+                      <input type="hidden" name="back" value="/ask" />
+                      <label className="font-medium">Permission
+                        <select name="permission" defaultValue="Read" className="mt-1 !py-1 !text-xs !w-auto"><option>Read</option><option>Comment</option><option>Edit</option></select>
+                      </label>
+                      <label className="font-medium">Justification
+                        <textarea name="justification" required rows={2} defaultValue={m.accessDraft.reason} className="mt-1 !text-xs" />
+                      </label>
+                      <div><button className="btn btn-primary !text-xs" type="submit">Request access</button></div>
+                    </form>
+                  ) : <div className="text-xs text-muted mt-2">The Access Requests table is not in the base yet.</div>}
+                </div>
+              )}
               {m.draft && (
                 <div className="card p-4 !bg-lilac mt-2">
                   <div className="eyebrow">Drafted for you · not submitted</div>
@@ -215,6 +243,7 @@ export function AskChat({ personaId, mode, model, starters, scope }: AskChatProp
           <li className="card p-2.5"><b>{scope.basesInScope}</b> bases in your scope<div className="text-xs text-muted">of {scope.basesInEstate} in the estate</div></li>
           <li className="card p-2.5"><b>{scope.datasets}</b> verified datasets<div className="text-xs text-muted">schema and steward only</div></li>
           <li className="card p-2.5"><b>{scope.visibleRequests}</b> roadmap items<div className="text-xs text-muted">{scope.hiddenRequests > 0 ? "excluding NDA-flagged items" : "none hidden from you"}</div></li>
+          {pendingAccess > 0 && <li className="card p-2.5"><b>{pendingAccess}</b> access request{pendingAccess === 1 ? "" : "s"} pending<div className="text-xs text-muted">status on the Roadmap page</div></li>}
         </ul>
         <div className="eyebrow mt-4">Your scope</div>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs"><dt className="text-muted">Role</dt><dd>{scope.role}</dd><dt className="text-muted">Org unit</dt><dd>{scope.orgUnit}</dd><dt className="text-muted">Groups</dt><dd>{scope.groups.join(", ") || "none"}</dd><dt className="text-muted">Account</dt><dd>{scope.external ? "external" : "member"}</dd></dl>

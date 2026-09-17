@@ -5,11 +5,15 @@ import { getData, stewardName, type Base } from "@/lib/snapshot";
 import { isSandboxWorkspace } from "@/lib/scope";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
+import { RequestAccess } from "@/components/RequestAccess";
+import { accessRequestsAvailable, pendingRequestFor } from "@/lib/access";
 
-export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string; locked?: string }> }) {
-  const { q = "", locked } = await searchParams;
+export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string; locked?: string; msg?: string }> }) {
+  const { q = "", locked, msg } = await searchParams;
   const data = getData();
   const me = await getCurrentUser();
+  const arAvailable = accessRequestsAvailable();
+  const backUrl = `/library?q=${encodeURIComponent(q)}${locked ? "&locked=1" : ""}`;
   const needle = q.trim().toLowerCase();
   const matches = (b: Base) => !needle || (b.name ?? "").toLowerCase().includes(needle) || (b.workspaceName ?? "").toLowerCase().includes(needle);
   const inScope = data.bases.filter((b) => (me.isAdmin || me.scope.bases.has(b.id)) && matches(b));
@@ -36,6 +40,8 @@ export default async function Library({ searchParams }: { searchParams: Promise<
           <button className="btn" type="submit">Filter</button>
         </form>
       </div>
+
+      {msg && <div className="mt-4 card !bg-amber-soft px-4 py-2 text-sm">{msg}</div>}
 
       <div className="mt-6 flex flex-col gap-6">
         {groups.map(([ws, bases]) => {
@@ -116,7 +122,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
                       <td className="font-medium">{b.name}</td>
                       <td className="text-ink-2">{b.workspaceName}</td>
                       <td><SensitivityChip value={b.sensitivity} /></td>
-                      <td className="text-right"><button className="btn btn-ghost !px-2 !py-1 !text-xs" disabled title="Access requests arrive in v2">Request access</button></td>
+                      <td className="text-right"><RequestAccess baseId={b.id} back={backUrl} available={arAvailable} pending={!!pendingRequestFor(data, me.user.id, { baseId: b.id })} small /></td>
                     </tr>
                   ))}
                   {lockedBases.length > 60 && <tr><td colSpan={4} className="text-muted text-xs">+{lockedBases.length - 60} more · narrow with the filter</td></tr>}

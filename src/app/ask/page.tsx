@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/persona";
 import { getData } from "@/lib/snapshot";
 import { canSee } from "@/lib/requests";
 import { assistantMode } from "@/lib/assistant";
+import { accessRequestsAvailable, myRequests } from "@/lib/access";
 import { AskChat } from "@/components/AskChat";
 import { Chip } from "@/components/Chip";
 
@@ -27,6 +28,8 @@ export default async function Ask() {
         mode={mode}
         model={foundryConfig.assistant.model}
         starters={["What's available to me?", "Who owns supplier data?", "Show me marketing ops apps", "Meal planning"]}
+        pendingAccess={myRequests(data, me).filter((r) => (r.status ?? "").toLowerCase() === "pending").length}
+        accessAvailable={accessRequestsAvailable()}
         scope={{
           basesInScope: me.scope.bases.size, basesInEstate: data.bases.length,
           datasets: data.datasets.length, visibleRequests, hiddenRequests: allRequests - visibleRequests,

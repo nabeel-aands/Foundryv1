@@ -75,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       trimConversation(convo);
       send({ event: "done", data: {
         mode: "claude", model: foundryConfig.assistant.model, conversationId: convo.id, turns: convo.turns,
-        usage: result.usage, sources: convo.sources, toolCalls: result.toolCalls, draft: result.draft,
+        usage: result.usage, sources: convo.sources, toolCalls: result.toolCalls, draft: result.draft, accessDraft: result.accessDraft,
       } });
       close();
     } catch (e) {

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { foundryConfig } from "../../../foundry.config";
 import type { CurrentUser } from "../persona";
+import { resolveLockedResource } from "../access";
 import type { Data } from "../snapshot";
 import { buildTools } from "./tools";
 import type { AskResult, Source, ToolCall } from "./types";
@@ -40,6 +41,7 @@ export type TurnResult = {
   usage: TurnUsage;
   toolCalls: ToolCall[];
   draft?: { title: string; description: string; useCase?: string };
+  accessDraft?: { kind: "base" | "interface"; id: string; name: string; workspace?: string; sensitivity: string; reason: string };
   stopReason?: string;
 };
 
@@ -122,6 +124,8 @@ export async function streamClaudeTurn(
 
   const text = redact(texts.join("").trim() || (stopReason === "refusal" ? "The model declined to answer this question." : "No answer was produced."));
   const draftCall = [...toolCalls].reverse().find((c) => c.name === "draft_request");
+  const accessCall = [...toolCalls].reverse().find((c) => c.name === "draft_access_request");
+  const accessHit = accessCall ? resolveLockedResource(data, me, String(accessCall.input.resourceName ?? "")) : undefined;
   const usage: TurnUsage = { inputTokens, outputTokens, cacheRead, iterations, ms: Date.now() - started, contextTokens };
   console.log(`[ask-foundry] chat · ${cfg.model} · ${toolCalls.length} tool calls · in ${inputTokens} (cached ${cacheRead}) · out ${outputTokens} · ${usage.ms}ms · persona ${me.role}`);
 
@@ -129,6 +133,7 @@ export async function streamClaudeTurn(
     messages: runner.params.messages as Anthropic.Beta.BetaMessageParam[],
     text, usage, toolCalls, stopReason,
     draft: draftCall ? { title: String(draftCall.input.title ?? ""), description: String(draftCall.input.description ?? ""), useCase: draftCall.input.useCase ? String(draftCall.input.useCase) : undefined } : undefined,
+    accessDraft: accessHit ? { ...accessHit, reason: String(accessCall?.input.reason ?? "") } : undefined,
   };
 }
 

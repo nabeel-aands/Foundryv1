@@ -17,6 +17,7 @@ export const foundryConfig = {
     verifiedDatasets: "Verified Datasets",
     requests: "Requests",
     votes: "Votes",
+    accessRequests: "Access Requests",
   },
   roles: {
     /** Members of these groups are Builders even without owning a workspace. */

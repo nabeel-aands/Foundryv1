@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {me.isAdmin && (
                 <div className="mt-4">
                   <div className="eyebrow !text-side-text/50 px-3 mb-1">Admin</div>
-                  <NavLinks items={[{ href: "/admin", label: "Governance console" }]} />
+                  <NavLinks items={[{ href: "/admin", label: "Governance console" }, { href: "/admin/access", label: "Access requests" }]} />
                 </div>
               )}
             </nav>

@@ -6,7 +6,7 @@
  */
 import { loadEnv } from "../src/lib/env";
 import { Airtable } from "../src/lib/airtable";
-import { fieldId, tableId } from "../src/lib/schema";
+import { choicesFor, fieldId, hasField, pickChoice, tableId } from "../src/lib/schema";
 import { getData, invalidateSnapshot, type Base, type User } from "../src/lib/snapshot";
 import { isExternal, orgUnitFor } from "../src/lib/scope";
 import { requestFields } from "../src/lib/requests";
@@ -14,6 +14,12 @@ import { runSync } from "../src/lib/sync";
 
 loadEnv();
 const wipe = process.argv.includes("--wipe");
+
+function accessRequestsReady(): boolean {
+  try { tableId("accessRequests"); } catch { return false; }
+  // Without Record Source, --wipe cannot tell seed rows apart; without Status choices, writes are rejected.
+  return hasField("accessRequests", "recordSource") && choicesFor("accessRequests", "status").length > 0;
+}
 
 async function main() {
   const at = Airtable.fromEnv();
@@ -25,7 +31,15 @@ async function main() {
       for (let i = 0; i < ids.length; i += 10) await at.deleteRecords(tableId(key), ids.slice(i, i + 10));
       console.log(`Deleted ${ids.length} seed rows from ${key}`);
     }
-    await runSync({ only: ["requests", "votes"] });
+    if (accessRequestsReady()) {
+      const ids = seeded(data.accessRequests);
+      for (let i = 0; i < ids.length; i += 10) await at.deleteRecords(tableId("accessRequests"), ids.slice(i, i + 10));
+      console.log(`Deleted ${ids.length} seed rows from accessRequests`);
+      await runSync({ only: ["requests", "votes", "accessRequests"] });
+    } else {
+      console.warn("Warning: Access Requests has no Record Source field (or is missing); skipping it in --wipe.");
+      await runSync({ only: ["requests", "votes"] });
+    }
     return;
   }
 
@@ -86,10 +100,49 @@ async function main() {
   for (let i = 0; i < voteRecords.length; i += 10) await at.createRecords(tableId("votes"), voteRecords.slice(i, i + 10));
   console.log(`Created ${voteRecords.length} votes`);
 
-  await runSync({ only: ["requests", "votes"], log: (l) => console.log(l) });
+  if (accessRequestsReady()) {
+    // Five access requests: three Pending across sensitivities, one Approved, one Denied.
+    const bySensitivity = (want: RegExp) => data.bases.find((b) => want.test(b.sensitivity ?? "")) ?? data.bases[0];
+    const admin = data.users.find((u) => u.admin && (u.status ?? "").toLowerCase() === "active");
+    const arPlan: { base: Base; permission: string; justification: string; status: string; note?: string }[] = [
+      { base: bySensitivity(/public|internal/i), permission: "Read", justification: "Need to check the supplier list before onboarding a new vendor.", status: "Pending" },
+      { base: bySensitivity(/confidential/i), permission: "Comment", justification: "Reviewing campaign spend for the quarterly close.", status: "Pending" },
+      { base: bySensitivity(/restricted/i), permission: "Read", justification: "Auditing headcount data for the finance review.", status: "Pending" },
+      { base: bySensitivity(/internal/i), permission: "Edit", justification: "Our pod maintains this tracker and I joined it last week.", status: "Approved", note: "Team membership confirmed with the workspace owner." },
+      { base: bySensitivity(/confidential/i), permission: "Edit", justification: "Want to explore the data.", status: "Denied", note: "Too broad; ask for Read on the specific view you need." },
+    ];
+    const arRecords = arPlan.map((p, i) => {
+      const requester = pick(50 + i * 11);
+      const fields: Record<string, unknown> = {
+        [fieldId("accessRequests", "requester")]: [requester.id],
+        [fieldId("accessRequests", "base")]: [p.base.id],
+        [fieldId("accessRequests", "requestedPermission")]: pickChoice("accessRequests", "requestedPermission", [p.permission, "Read"]),
+        [fieldId("accessRequests", "justification")]: p.justification,
+        [fieldId("accessRequests", "status")]: pickChoice("accessRequests", "status", [p.status]),
+        [fieldId("accessRequests", "recordSource")]: pickChoice("accessRequests", "recordSource", ["Seed"]),
+      };
+      if (hasField("accessRequests", "requesterOrgUnit")) fields[fieldId("accessRequests", "requesterOrgUnit")] = orgUnitFor(requester).value;
+      if (p.status !== "Pending") {
+        if (admin) fields[fieldId("accessRequests", "approver")] = [admin.id];
+        fields[fieldId("accessRequests", "decisionAt")] = new Date(Date.now() - (i + 1) * 86400000).toISOString();
+        if (p.note && hasField("accessRequests", "decisionNote")) fields[fieldId("accessRequests", "decisionNote")] = p.note;
+        if (hasField("accessRequests", "grantMethod")) {
+          const c = pickChoice("accessRequests", "grantMethod", ["Manual"]);
+          if (c) fields[fieldId("accessRequests", "grantMethod")] = c;
+        }
+      }
+      return { fields };
+    });
+    await at.createRecords(tableId("accessRequests"), arRecords);
+    console.log(`Created ${arRecords.length} access requests`);
+  } else {
+    console.warn("Warning: Access Requests table or its Record Source field is missing; skipped seeding it.");
+  }
+
+  await runSync({ only: accessRequestsReady() ? ["requests", "votes", "accessRequests"] : ["requests", "votes"], log: (l) => console.log(l) });
   invalidateSnapshot();
   data = getData();
-  console.log(`Snapshot now has ${data.requests.length} requests and ${data.votes.length} votes.`);
+  console.log(`Snapshot now has ${data.requests.length} requests, ${data.votes.length} votes and ${data.accessRequests.length} access requests.`);
 }
 
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

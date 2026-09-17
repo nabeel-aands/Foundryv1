@@ -3,6 +3,8 @@ import { foundryConfig } from "../../../foundry.config";
 import { getCurrentUser } from "@/lib/persona";
 import { displayName, getData, stewardName } from "@/lib/snapshot";
 import { isExternal, isSandboxWorkspace } from "@/lib/scope";
+import Link from "next/link";
+import { pendingFor } from "@/lib/access";
 import { Tile } from "@/components/Tile";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
@@ -77,6 +79,7 @@ export default async function Admin() {
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">{basesWithExternal.length} bases have external collaborators</div><div className="text-xs text-muted">{basesWithExternal.slice(0, 3).map((x) => `${x.b.name} (${x.n})`).join(" · ")}</div></div></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-warn flex-none" /><div className="flex-1"><div className="font-medium">{data.bases.length - classified} bases have no sensitivity flag</div><div className="text-xs text-muted">Set Sensitivity on the Airtable Bases table; the coverage tile updates on refresh.</div></div><OpenInAirtable href={`https://airtable.com/${process.env.AIRTABLE_BASE_ID ?? ""}`} label="Classify in Airtable" small /></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-amber flex-none" /><div className="flex-1"><div className="font-medium">{data.requests.filter((r) => /submitted/i.test(r.status ?? "")).length} requests awaiting first response</div><div className="text-xs text-muted">Submitted and not yet In Review.</div></div></li>
+            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">Pending access requests: {pendingFor(data, me).length}</div><div className="text-xs text-muted">People waiting on a base or interface they cannot open.</div></div><Link className="btn btn-ghost !px-2 !py-1 !text-xs" href="/admin/access">Review</Link></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-line-2 flex-none" /><div className="flex-1"><div className="font-medium">{data.datasets.filter((d) => !stewardName(d)).length} verified datasets have no steward</div><div className="text-xs text-muted">Assign an Owner in the Verified Datasets table.</div></div></li>
           </ul>
         </section>

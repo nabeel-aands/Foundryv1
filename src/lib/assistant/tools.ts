@@ -8,6 +8,7 @@ import { z } from "zod";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { foundryConfig } from "../../../foundry.config";
 import type { CurrentUser } from "../persona";
+import { resolveLockedResource } from "../access";
 import { canSee, activeVotes } from "../requests";
 import { tokens } from "../search";
 import { stewardName, type Data } from "../snapshot";
@@ -133,5 +134,16 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
     run: async (input) => timed("draft_request", input as Record<string, unknown>, () => ({ count: 1, payload: { drafted: true, ...input, note: "Shown to the user as a draft; they must confirm in the Build wizard." } })),
   });
 
-  return { tools: [my_scope, find_apps, find_datasets, roadmap_items, who_owns, find_locked, draft_request] };
+  const draft_access_request = betaZodTool({
+    name: "draft_access_request",
+    description: "Draft an access request for a base or interface the user cannot open. This does NOT submit anything; the UI shows the draft with a confirm button. Use after find_locked shows something that fits.",
+    inputSchema: z.object({ resourceName: z.string().describe("Name of the locked base or interface, as find_locked returned it"), reason: z.string().max(400).describe("Why the user needs it, in their words") }),
+    run: async (input) => timed("draft_access_request", input as Record<string, unknown>, () => {
+      const hit = resolveLockedResource(data, me, input.resourceName);
+      if (!hit) return { count: 0, payload: { drafted: false, note: "No locked base or interface matches that name. Use find_locked first." } };
+      return { count: 1, payload: { drafted: true, resource: hit.name, kind: hit.kind, workspace: hit.workspace, sensitivity: hit.sensitivity, reason: input.reason, note: "Shown to the user as a draft; they must confirm before anything is submitted." } };
+    }),
+  });
+
+  return { tools: [my_scope, find_apps, find_datasets, roadmap_items, who_owns, find_locked, draft_request, draft_access_request] };
 }

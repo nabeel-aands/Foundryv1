@@ -4,17 +4,17 @@
  * and "Workspaces via Owner User IDs" both resolve.
  */
 export type TableKey =
-  | "users" | "groups" | "workspaces" | "bases" | "interfaces" | "verifiedDatasets" | "requests" | "votes";
+  | "users" | "groups" | "workspaces" | "bases" | "interfaces" | "verifiedDatasets" | "requests" | "votes" | "accessRequests";
 
 export const TABLE_KEYS: TableKey[] = [
-  "users", "groups", "workspaces", "bases", "interfaces", "verifiedDatasets", "requests", "votes",
+  "users", "groups", "workspaces", "bases", "interfaces", "verifiedDatasets", "requests", "votes", "accessRequests",
 ];
 
 /** Tables that are synced from the admin panel: read-only for Foundry. */
 export const SYNCED_TABLES: TableKey[] = ["users", "groups", "workspaces", "bases", "interfaces"];
 
 /** Tables Foundry writes to. */
-export const FOUNDRY_TABLES: TableKey[] = ["requests", "votes"];
+export const FOUNDRY_TABLES: TableKey[] = ["requests", "votes", "accessRequests"];
 
 export const FIELD_ALIASES: Record<TableKey, Record<string, string[]>> = {
   users: {
@@ -141,6 +141,23 @@ export const FIELD_ALIASES: Record<TableKey, Record<string, string[]>> = {
     recordSource: ["Record Source"],
     votedAt: ["Voted at", "Cast at", "Created"],
   },
+  accessRequests: {
+    request: ["Request"],
+    requester: ["Requester"],
+    base: ["Base"],
+    interface: ["Interface"],
+    requestedPermission: ["Requested permission"],
+    justification: ["Justification"],
+    requesterOrgUnit: ["Requester org unit"],
+    status: ["Status"],
+    approver: ["Approver"],
+    decisionAt: ["Decision at"],
+    decisionNote: ["Decision note"],
+    // Grant method and Record Source are optional in this base; guard with hasField() before use.
+    grantMethod: ["Grant method"],
+    recordSource: ["Record Source"],
+    requestedAt: ["Requested at", "Created"],
+  },
 };
 
 /** Canonical keys that must exist for the app to work. Missing ones fail the sync loudly. */
@@ -153,6 +170,8 @@ export const REQUIRED_FIELDS: Partial<Record<TableKey, string[]>> = {
   verifiedDatasets: ["name"],
   requests: ["title", "status", "requester", "nda", "recordSource"],
   votes: ["request", "voter", "active"],
+  // Grant method and Record Source stay out of this list on purpose: the table may omit them.
+  accessRequests: ["requester", "requestedPermission", "status"],
 };
 
 export function normalizeName(name: string): string {
