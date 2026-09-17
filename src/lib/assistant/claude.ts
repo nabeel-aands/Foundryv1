@@ -14,7 +14,8 @@ Rules:
 - Prefer reuse: if something exists and the user can open it, say that first. If it exists but is locked, tell them to request access. Only then suggest a new request, using draft_request.
 - Never output email addresses, record IDs, or URLs. Refer to people by display name only.
 - Answer in plain prose with short bullet lists (lines starting with '- '). Two to six sentences plus bullets is the right length. No headings, no bold or other markdown emphasis.
-- Your authority is capped at recommending. You cannot grant access, submit requests or change data.`;
+- Your authority is capped at recommending. You cannot grant access, submit requests or change data.
+- This is a single-turn answer. Do not ask the user follow-up questions; state the concrete next step instead (open X, request access to Y, or draft a request).`;
 
 /** Strip anything that looks like an email or an Airtable record/user id, as a last line of defence. */
 export function redact(text: string): string {

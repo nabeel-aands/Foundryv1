@@ -23,12 +23,12 @@ function scoreText(text: string, toks: string[]): number {
 export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources: Source[]) {
   const seen = new Set<string>();
   const addSource = (s: Source) => { const k = s.kind + s.id; if (!seen.has(k)) { seen.add(k); sources.push(s); } };
-  const timed = <T,>(name: string, input: Record<string, unknown>, fn: () => T & { length?: number } | T): T => {
+  /** Run a tool body, log the call with a real result count, and return the JSON string the model sees. */
+  const timed = (name: string, input: Record<string, unknown>, fn: () => { count: number; payload: unknown }): string => {
     const t0 = Date.now();
-    const out = fn();
-    const count = Array.isArray(out) ? out.length : Array.isArray((out as { items?: unknown[] })?.items) ? (out as { items: unknown[] }).items.length : 1;
+    const { count, payload } = fn();
     log.push({ name, input, resultCount: count, ms: Date.now() - t0 });
-    return out;
+    return JSON.stringify(payload);
   };
   const inScopeBase = (id: string) => me.scope.bases.has(id);
 
@@ -46,7 +46,7 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
           addSource({ kind: "base", id: b.id, title: b.name ?? "", subtitle: `Base · ${b.workspaceName ?? ""}`, inScope: true, href: b.baseId ? foundryConfig.urls.base(b.baseId) : undefined });
           return { name: b.name, workspace: b.workspaceName, sensitivity: b.sensitivity ?? "unclassified", sandbox: !!b.sandbox, rows: b.rowCount ?? 0, interfaces: (data.interfacesByBase.get(b.id) ?? []).map((i) => i.name).slice(0, 8), usesVerifiedDatasets: (b.verifiedDatasets ?? []).length };
         });
-      return JSON.stringify({ items, note: items.length ? undefined : "No bases in the user's scope match. Try find_locked to see if something exists elsewhere." });
+      return { count: items.length, payload: { items, note: items.length ? undefined : "No bases in the user's scope match. Try find_locked to see if something exists elsewhere." } };
     }),
   });
 
@@ -63,7 +63,7 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
           addSource({ kind: "dataset", id: d.id, title: d.name ?? "", subtitle: `Verified dataset · ${d.orgUnit ?? ""}`, inScope: true });
           return { name: d.name, description: d.description, orgUnit: d.orgUnit, audience: d.audience, steward: stewardName(d) ?? "unassigned", verified: !!d.verified, status: d.status, usedByBases: (d.basesUsing ?? []).length };
         });
-      return JSON.stringify({ items });
+      return { count: items.length, payload: { items } };
     }),
   });
 
@@ -81,7 +81,7 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
           addSource({ kind: "request", id: r.id, title: r.title ?? "", subtitle: `Proposal · ${r.status ?? ""} · ${votes} votes`, inScope: true, href: "/roadmap" });
           return { title: r.title, status: r.status, useCase: r.useCase, path: r.path, votes, description: r.description?.slice(0, 200) };
         });
-      return JSON.stringify({ items, hiddenNote: "NDA-flagged items the user cannot see are excluded and not counted." });
+      return { count: items.length, payload: { items, hiddenNote: "NDA-flagged items the user cannot see are excluded and not counted." } };
     }),
   });
 
@@ -96,7 +96,7 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
         addSource({ kind: "workspace", id: w.id, title: w.name ?? "", subtitle: "Workspace", inScope: me.scope.workspaces.has(w.id) });
         return { workspace: w.name, owners: (w.owners ?? []).map((id) => { const u = data.userById.get(id); return u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || "unknown" : "unknown"; }), bases: data.workspaceBaseIds.get(w.id)?.size ?? 0 };
       });
-      return JSON.stringify({ datasets, workspaces });
+      return { count: datasets.length + workspaces.length, payload: { datasets, workspaces } };
     }),
   });
 
@@ -111,7 +111,7 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
         .map((b) => ({ b, s: scoreText(`${b.name ?? ""} ${b.workspaceName ?? ""}`, toks) }))
         .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, limit)
         .map(({ b }) => { addSource({ kind: "base", id: b.id, title: b.name ?? "", subtitle: `Base · ${b.workspaceName ?? ""} · access required`, inScope: false }); return { name: b.name, workspace: b.workspaceName, sensitivity: b.sensitivity ?? "unclassified" }; });
-      return JSON.stringify({ items });
+      return { count: items.length, payload: { items } };
     }),
   });
 
@@ -119,18 +119,18 @@ export function buildTools(data: Data, me: CurrentUser, log: ToolCall[], sources
     name: "my_scope",
     description: "The current user's role, org unit, groups and how much of the estate they can reach. Call this first when the question is about 'me' or 'available to me'.",
     inputSchema: z.object({}),
-    run: async () => timed("my_scope", {}, () => JSON.stringify({
+    run: async () => timed("my_scope", {}, () => ({ count: 1, payload: {
       role: me.role, orgUnit: me.orgUnit.value, groups: me.groupNames, external: me.external,
       basesInScope: me.scope.bases.size, basesInEstate: data.bases.length, interfacesInScope: me.scope.interfaces.size,
       verifiedDatasets: data.datasets.length, roadmapItemsVisible: data.requests.filter((r) => r.title && canSee(r, me)).length,
-    })),
+    } })),
   });
 
   const draft_request = betaZodTool({
     name: "draft_request",
     description: "Draft a new build request for the user to review and submit. This does NOT submit anything; it only proposes a title, description and use case the UI will show with a confirm button. Use when nothing existing fits.",
     inputSchema: z.object({ title: z.string().max(80), description: z.string().max(600), useCase: z.enum(["Project Management", "Product Management", "Marketing Ops", "Calendar", "Other"]).optional() }),
-    run: async (input) => timed("draft_request", input as Record<string, unknown>, () => JSON.stringify({ drafted: true, ...input, note: "Shown to the user as a draft; they must confirm in the Build wizard." })),
+    run: async (input) => timed("draft_request", input as Record<string, unknown>, () => ({ count: 1, payload: { drafted: true, ...input, note: "Shown to the user as a draft; they must confirm in the Build wizard." } })),
   });
 
   return { tools: [my_scope, find_apps, find_datasets, roadmap_items, who_owns, find_locked, draft_request] };
