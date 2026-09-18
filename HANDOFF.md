@@ -7,7 +7,7 @@ from a clean clone in about ten minutes. Follow the steps in order; each has a c
 
 Foundry is a governance portal on top of Airtable's enterprise admin-panel sync. One base per
 enterprise: the admin panel syncs Users, Groups, Workspaces, Bases and Interfaces into it, and
-Foundry keeps two tables of its own beside them (Requests, Votes). The app reads a snapshot of the
+Foundry keeps three tables of its own beside them (Requests, Votes, Access Requests). The app reads a snapshot of the
 whole base and writes only to those two tables.
 
 For A&S the base is **"Admin Sync Test"**. You need a personal access token that can read it and
@@ -56,7 +56,7 @@ package, tell Nabeel which one. All versions in `package.json` are pinned and we
 ## 3. Airtable token
 
 1. Open https://airtable.com/create/tokens and create a personal access token.
-2. Scopes: `data.records:read`, `data.records:write`, `schema.bases:read`.
+2. Scopes: `data.records:read`, `data.records:write`, `schema.bases:read`, `webhook:manage`.
 3. Access: only the base "Admin Sync Test".
 4. Copy the token (starts with `pat`). Find the base ID in the base URL (starts with `app`).
 
@@ -73,7 +73,11 @@ AIRTABLE_PAT=pat…
 AIRTABLE_BASE_ID=app…
 FOUNDRY_DEMO=1
 HOST=127.0.0.1
+ANTHROPIC_API_KEY=sk-ant-api03-…   # optional: enables Ask Foundry on Claude; without it, keyword search
 ```
+
+If the base does not yet have the **Access Requests** table, create it from the field list in
+`docs/PLAN-v1.1.md` (section 2). The app runs without it, but the Request access buttons stay disabled.
 
 `.env` is git-ignored. Never commit it or paste the token anywhere else.
 
@@ -106,6 +110,12 @@ Remove them later with `npm run seed -- --wipe`.
 npm run dev
 ```
 
+Optional, for live refresh while the app runs (creates an Airtable webhook the app polls every 30 seconds):
+
+```bash
+npm run webhook -- create
+```
+
 Open http://127.0.0.1:3000. Stop with Ctrl+C.
 
 Check: the strip at the top shows the real counts with a green `Real` chip and today's fetch time.
@@ -116,8 +126,12 @@ Check: the strip at the top shows the real counts with a green `Real` chip and t
   builder, or a `walmart.com` guest to see scope change. It only works with `FOUNDRY_DEMO=1`.
 - **Refresh from Airtable** is on the Governance console (admin persona only). It re-pulls
   everything in about eight seconds.
-- **Votes and requests write to Airtable immediately.** Open the Votes or Requests table in the
+- **Votes, requests and access requests write to Airtable immediately.** Open the matching table in the
   base to see rows appear. Retracting a vote unticks `Active`; nothing is deleted.
+- **Ask Foundry** is a chat. With `ANTHROPIC_API_KEY` set it runs on Claude (Haiku by default, about half a
+  cent per question); without it, it answers with keyword search and says so.
+- **Live refresh**: the strip shows the fetch time; with the webhook created, a change in Airtable appears
+  within about 30 seconds without reloading.
 - A ten-minute demo script and the rules the code follows are in `README.md`.
 
 ## 6b. Live refresh (optional)
@@ -154,6 +168,8 @@ seeder skips this table.
 | Page says "Foundry needs a snapshot" | `npm run sync` has not run yet, or `.env` is missing |
 | Sync fails with 401 or 403 | Token scopes or base access are wrong; recreate the token as in step 3 |
 | Sync fails with 429 | Wait 30 seconds and re-run; the base's API budget was exhausted |
+| Sync fails with `fetch failed` / `ENOTFOUND` | A proxy is blocking `api.airtable.com`; ask IT to allowlist that exact host, and set `NODE_USE_ENV_PROXY=1` if you must go through a proxy |
+| Ask Foundry says "no model" | `ANTHROPIC_API_KEY` is not in `.env`; that is fine, keyword mode still works |
 | Persona switcher missing | `FOUNDRY_DEMO=1` is not set, or the app is not on 127.0.0.1 |
 | Counts look stale | Press Refresh from Airtable, or run `npm run sync` |
 
