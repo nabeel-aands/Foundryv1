@@ -37,8 +37,11 @@ behaviour on a laptop.
   Keys: `snapshot`, `schema`, `webhook`. Implementations: `FileStore` (today's `data/` files, unchanged
   layout), `BlobStore` (`@vercel/blob`, private access, one blob per key, overwrite in place), `MemoryKV`
   (today's `globalThis` maps), `UpstashKV` (`@upstash/redis`). Selection in `src/lib/store.ts`:
-  `BLOB_READ_WRITE_TOKEN` present → BlobStore, else FileStore; `UPSTASH_REDIS_REST_URL` present →
-  UpstashKV, else MemoryKV. Export `getStore()` and `getKV()` singletons.
+  `BLOB_READ_WRITE_TOKEN` present → BlobStore, else FileStore. KV: `REDIS_URL` present → `RedisKV`
+  (standard `redis` client, `rediss://` URL; this is what the Vercel Marketplace Redis integration
+  provides), else `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` present → `UpstashKV`
+  (`@upstash/redis`), else MemoryKV. Export `getStore()` and `getKV()` singletons. On Vercel, create the
+  Redis client lazily and reuse it across invocations via `globalThis`.
 - **Replace direct fs use** in `src/lib/sync.ts`, `src/lib/snapshot.ts`, `src/lib/schema.ts`,
   `src/lib/worker.ts`, `scripts/webhook.ts` with the store. The snapshot cache in `snapshot.ts` keys on
   `stat().updatedAt` instead of file mtime. Loading becomes async: `getData()` returns a Promise; update
@@ -63,7 +66,7 @@ behaviour on a laptop.
   prints the two values with a note to paste them into Vercel env vars.
 - **Push endpoint** `src/app/api/webhooks/airtable/route.ts`: verify HMAC with the env secret, then call
   `drainWebhook()`; respond 200 within a few seconds; Node runtime.
-- **Health** `src/app/api/health/route.ts`: `{ ok, fetchedAt, ageSeconds, counts, webhook: { id, expiresAt, expired }, store: "file"|"blob", kv: "memory"|"upstash", mode: "demo"|"oidc"|"open" }`. No Airtable call.
+- **Health** `src/app/api/health/route.ts`: `{ ok, fetchedAt, ageSeconds, counts, webhook: { id, expiresAt, expired }, store: "file"|"blob", kv: "memory"|"redis"|"upstash", mode: "demo"|"oidc"|"open" }`. No Airtable call.
 - **Node runtime** declared (`export const runtime = "nodejs"`) on every route handler.
 - **Boot without snapshot.** On Vercel the first deploy has an empty store: the layout's "needs a snapshot"
   screen shows a button (admin or CRON_SECRET) that calls `/api/jobs/sync`, and `HANDOFF.md` documents
@@ -71,11 +74,11 @@ behaviour on a laptop.
 - **Client config path.** `foundry.config.ts` stays, but `src/lib/config.ts` exports `getConfig()` reading
   `FOUNDRY_CLIENT` to import `clients/<slug>/foundry.config.ts` when set, else the root file. Create
   `clients/aands/foundry.config.ts` as a copy of today's config.
-- Dependencies: `@vercel/blob`, `@upstash/redis`. Pin exact versions.
+- Dependencies: `@vercel/blob`, `redis` (node-redis v5), `@upstash/redis`. Pin exact versions.
 
 ### Acceptance
 - Laptop: `npm run sync`, `npm run dev`, votes, chat and webhook polling all behave as before; `data/` files still written.
-- With `BLOB_READ_WRITE_TOKEN` and Upstash vars set locally (from a test Vercel project), `npm run sync` writes to Blob, `npm run dev` serves from it, and `/api/health` reports `store: blob, kv: upstash`.
+- With `BLOB_READ_WRITE_TOKEN` and Upstash vars set locally (from a test Vercel project), `npm run sync` writes to Blob, `npm run dev` serves from it, and `/api/health` reports `store: blob, kv: redis` (or `upstash`).
 - `curl -H "Authorization: Bearer $CRON_SECRET" /api/jobs/sync` runs a full sync; without the header it returns 401.
 - Two concurrent `/api/jobs/drain` calls: one runs, one logs "lock held".
 - `vercel build` succeeds locally.
