@@ -5,8 +5,8 @@
  */
 import { Airtable } from "./airtable";
 import { fieldId, hasField, pickChoice, tableId } from "./schema";
-import { invalidateSnapshot, type AccessRequestRow, type Base, type Data, type Interface } from "./snapshot";
-import { runSync } from "./sync";
+import { type AccessRequestRow, type Base, type Data, type Interface } from "./snapshot";
+import { syncTables } from "./worker";
 import { tokens } from "./search";
 import type { CurrentUser } from "./persona";
 
@@ -109,8 +109,7 @@ export function resolveLockedResource(data: Data, me: CurrentUser, name: string)
 }
 
 async function refreshAccessRequests(): Promise<void> {
-  await runSync({ only: ["accessRequests"] });
-  invalidateSnapshot();
+  await syncTables(["accessRequests"]);
 }
 
 export type NewAccessRequest = { baseId?: string; interfaceId?: string; permission: string; justification: string };

@@ -1,6 +1,7 @@
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import type { CurrentUser } from "../persona";
 import type { Data } from "../snapshot";
+import { getKV } from "../store";
 import { askKeyword } from "./keyword";
 import type { AskResult } from "./types";
 
@@ -10,17 +11,15 @@ export function assistantMode(): "claude" | "keyword" {
   return process.env.ANTHROPIC_API_KEY ? "claude" : "keyword";
 }
 
-type Cached = { at: number; result: AskResult };
-const g = globalThis as unknown as { __askCache?: Map<string, Cached> };
-const cache = (g.__askCache ??= new Map());
-
 /** Answer a question for a persona. Cached per persona + question + snapshot so refreshes do not re-spend credits. */
 export async function ask(data: Data, me: CurrentUser, question: string): Promise<AskResult> {
   const q = question.trim();
   if (!q) return { mode: assistantMode(), answer: "", sources: [], toolCalls: [] };
-  const key = `${me.user.id}|${data.fetchedAt}|${q.toLowerCase()}`;
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < foundryConfig.assistant.cacheMinutes * 60_000) return { ...hit.result, cached: true };
+  const kv = getKV();
+  // The snapshot stamp is in the key, so a refresh naturally misses rather than serving stale numbers.
+  const key = `ask:answer:${me.user.id}|${data.fetchedAt}|${q.toLowerCase()}`;
+  const hit = await kv.get<AskResult>(key);
+  if (hit) return { ...hit, cached: true };
 
   let result: AskResult;
   if (assistantMode() === "claude") {
@@ -35,6 +34,6 @@ export async function ask(data: Data, me: CurrentUser, question: string): Promis
   } else {
     result = askKeyword(data, me, q);
   }
-  cache.set(key, { at: Date.now(), result });
+  await kv.set(key, result, foundryConfig.assistant.cacheMinutes * 60);
   return result;
 }

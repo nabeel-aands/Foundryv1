@@ -1,10 +1,13 @@
 /**
- * In-memory conversation store for Ask Foundry chat mode. Lives on globalThis so dev hot
- * reloads keep it; nothing is persisted. The browser only ever holds the conversation ID.
+ * Conversation store and message budget for Ask Foundry chat mode, on the KV.
+ * Locally that is a process-local map (exactly the old behaviour); on Vercel it is Redis,
+ * because the next turn of a conversation lands on a different invocation. The browser
+ * only ever holds the conversation ID.
  */
 import { randomUUID } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
+import { getKV } from "../store";
 import type { Source } from "./types";
 
 export type Conversation = {
@@ -21,52 +24,43 @@ export type Conversation = {
   touchedAt: number;
 };
 
-const TTL_MS = 30 * 60_000;
+/** Idle expiry, re-armed on every save. Replaces the old sweep over an in-process map. */
+const TTL_SECONDS = 30 * 60;
 
-type Store = { conversations: Map<string, Conversation>; sent: Map<string, number[]> };
-const g = globalThis as unknown as { __askConversations?: Store };
-const store: Store = (g.__askConversations ??= { conversations: new Map(), sent: new Map() });
+const convoKey = (id: string) => `ask:convo:${id}`;
+/** One counter per persona per clock hour; the expiry does the forgetting. */
+const budgetKey = (personaId: string) => `ask:budget:${personaId}:${Math.floor(Date.now() / 3_600_000)}`;
 
-function sweep(): void {
-  const now = Date.now();
-  for (const [id, c] of store.conversations) if (now - c.touchedAt > TTL_MS) store.conversations.delete(id);
-}
-
-export function getConversation(id: string | undefined): Conversation | undefined {
-  sweep();
+export async function getConversation(id: string | undefined): Promise<Conversation | undefined> {
   if (!id) return undefined;
-  const c = store.conversations.get(id);
-  if (c) c.touchedAt = Date.now();
+  const c = await getKV().get<Conversation>(convoKey(id));
+  if (!c) return undefined;
+  c.touchedAt = Date.now();
   return c;
 }
 
 export function createConversation(personaId: string, snapshotFetchedAt: string): Conversation {
-  sweep();
-  const c: Conversation = {
+  return {
     id: randomUUID(), personaId, snapshotFetchedAt,
     messages: [], sources: [], turns: 0, lastInputTokens: 0,
     createdAt: Date.now(), touchedAt: Date.now(),
   };
-  store.conversations.set(c.id, c);
-  return c;
 }
 
-export function discardConversation(id: string): void {
-  store.conversations.delete(id);
+/** Persist the conversation and re-arm its idle expiry. A new one only exists once saved. */
+export async function saveConversation(c: Conversation): Promise<void> {
+  c.touchedAt = Date.now();
+  await getKV().set(convoKey(c.id), c, TTL_SECONDS);
+}
+
+export async function discardConversation(id: string): Promise<void> {
+  await getKV().del(convoKey(id));
 }
 
 /** Rolling-hour message budget per persona. Returns false when the budget is spent. */
-export function takeMessageBudget(personaId: string): boolean {
-  const now = Date.now();
-  const cutoff = now - 60 * 60_000;
-  const times = (store.sent.get(personaId) ?? []).filter((t) => t > cutoff);
-  if (times.length >= foundryConfig.assistant.messagesPerHour) {
-    store.sent.set(personaId, times);
-    return false;
-  }
-  times.push(now);
-  store.sent.set(personaId, times);
-  return true;
+export async function takeMessageBudget(personaId: string): Promise<boolean> {
+  const n = await getKV().incr(budgetKey(personaId), 3_600);
+  return n <= foundryConfig.assistant.messagesPerHour;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { Chip } from "@/components/Chip";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 
 const components = [
   { type: "TABLE", name: "People lookup", body: "Linked to All People Data with org unit and cost center rollups." },

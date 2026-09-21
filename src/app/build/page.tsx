@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData } from "@/lib/snapshot";
 import { searchCatalog } from "@/lib/search";
@@ -16,7 +16,7 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const step = Math.min(4, Math.max(1, Number(sp.step ?? (q ? 2 : 1)) || 1));
-  const data = getData();
+  const data = await getData();
   const me = await getCurrentUser();
   const matches = q ? searchCatalog(data, me.scope, q, 6) : [];
   const paths = choicesFor("requests", "path");

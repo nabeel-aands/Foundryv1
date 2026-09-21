@@ -6,7 +6,7 @@
  */
 import { z } from "zod";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import type { CurrentUser } from "../persona";
 import { resolveLockedResource } from "../access";
 import { canSee, activeVotes } from "../requests";

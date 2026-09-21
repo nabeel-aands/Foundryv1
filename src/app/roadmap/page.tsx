@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData } from "@/lib/snapshot";
 import { myActiveVotes, rankRequests } from "@/lib/requests";
@@ -10,7 +10,7 @@ import { retract, vote } from "../actions";
 
 export default async function Roadmap({ searchParams }: { searchParams: Promise<{ useCase?: string; status?: string; msg?: string }> }) {
   const { useCase = "", status = "", msg } = await searchParams;
-  const data = getData();
+  const data = await getData();
   const me = await getCurrentUser();
   const ranked = rankRequests(data, me).filter((r) => (!useCase || r.row.useCase === useCase) && (!status || r.row.status === status));
   const used = myActiveVotes(data, me.user).length;

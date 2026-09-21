@@ -18,6 +18,3 @@ export function env(name: string): string {
   return v;
 }
 
-export function isDemoMode(): boolean {
-  return process.env.FOUNDRY_DEMO === "1" && process.env.NODE_ENV !== "production";
-}

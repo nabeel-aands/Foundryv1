@@ -1,30 +1,72 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import "./globals.css";
-import { foundryConfig } from "../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { NavLinks } from "@/components/NavLinks";
 import { PersonaSwitcher } from "@/components/PersonaSwitcher";
 import { ControlStrip } from "@/components/ControlStrip";
-import { getCurrentUser, quickPicks } from "@/lib/persona";
-import { displayName, getData, hasSnapshot } from "@/lib/snapshot";
-import { isDemoMode } from "@/lib/env";
+import { FirstSync } from "@/components/FirstSync";
+import { AccessDenied, getCurrentUser, NotSignedIn, quickPicks, type CurrentUser } from "@/lib/persona";
+import { displayName, getData, hasSnapshot, type Data } from "@/lib/snapshot";
+import { authMode, DENIAL_TEXT } from "@/lib/identity";
+import { storeKind } from "@/lib/store";
 import { setPersona } from "./actions";
 
 export const metadata: Metadata = { title: "Foundry", description: "Enterprise governance for Airtable" };
 export const dynamic = "force-dynamic";
 
+function Bare({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <html lang="en"><body className="p-10 max-w-xl mx-auto">
+      <h1 className="text-2xl font-semibold">{title}</h1>
+      {children}
+    </body></html>
+  );
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  if (!hasSnapshot()) {
+  if (!(await hasSnapshot())) {
+    const remote = storeKind() === "blob";
     return (
-      <html lang="en"><body className="p-10 max-w-xl mx-auto">
-        <h1 className="text-2xl font-semibold">Foundry needs a snapshot</h1>
-        <p className="mt-2 text-ink-2">Run <code className="mono">npm run sync</code> with your <code className="mono">.env</code> filled in, then reload.</p>
-      </body></html>
+      <Bare title="Foundry needs a snapshot">
+        {remote ? (
+          <>
+            <p className="mt-2 text-ink-2">
+              This deployment has an empty Blob store. Run the first sync once and Foundry takes over from the crons in
+              <code className="mono"> vercel.json</code>.
+            </p>
+            <FirstSync />
+            <p className="mt-4 text-xs text-muted">
+              Or from a terminal: <code className="mono">curl -H &quot;Authorization: Bearer $CRON_SECRET&quot; https://your-host/api/jobs/sync</code>
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-ink-2">Run <code className="mono">npm run sync</code> with your <code className="mono">.env</code> filled in, then reload.</p>
+        )}
+      </Bare>
     );
   }
-  const data = getData();
-  const me = await getCurrentUser();
-  const demo = isDemoMode();
-  const toOpt = (u: (typeof data.users)[number]) => ({ id: u.id, label: displayName(u), detail: u.admin ? "admin" : (u.accountType ?? "member").toLowerCase() });
+
+  const data = await getData();
+  let me: CurrentUser;
+  try {
+    me = await getCurrentUser();
+  } catch (e) {
+    if (e instanceof NotSignedIn) redirect("/auth/login");
+    if (e instanceof AccessDenied) {
+      return (
+        <Bare title="Foundry cannot sign you in">
+          <p className="mt-2 text-ink-2">{DENIAL_TEXT[e.reason]}</p>
+          <p className="mt-4"><a className="btn" href="/auth/logout">Sign out and try another account</a></p>
+        </Bare>
+      );
+    }
+    throw e;
+  }
+
+  const mode = authMode();
+  const demo = mode === "demo";
+  const toOpt = (u: Data["users"][number]) => ({ id: u.id, label: displayName(u), detail: u.admin ? "admin" : (u.accountType ?? "member").toLowerCase() });
   const nav = [
     { href: "/", label: "Home" },
     { href: "/build", label: "Build something" },
@@ -60,7 +102,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <div className="text-[11px] mono text-side-text/70 truncate" title={`org unit source: ${me.orgUnit.source}`}>{me.role} · {me.orgUnit.value}{me.external ? " · external" : ""}</div>
                 </div>
               </div>
+              {/* The switcher is compiled in only for demo mode; signed-in deployments get a sign-out link. */}
               {demo && <PersonaSwitcher current={me.user.id} quick={quickPicks(data).map(toOpt)} all={data.users.filter((u) => (u.status ?? "").toLowerCase() === "active").sort((a, b) => displayName(a).localeCompare(displayName(b))).map(toOpt)} action={setPersona} />}
+              {mode === "oidc" && <a href="/auth/logout" className="text-[11px] mono text-side-text/70 hover:text-white">Sign out</a>}
             </div>
           </aside>
           <div className="min-w-0 flex flex-col">

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import type { CurrentUser } from "../persona";
 import { resolveLockedResource } from "../access";
 import type { Data } from "../snapshot";

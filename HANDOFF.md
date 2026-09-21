@@ -123,7 +123,8 @@ Check: the strip at the top shows the real counts with a green `Real` chip and t
 ## 6. Using the demo
 
 - **Persona switcher** is in the bottom-left. It lists real users from the sync; pick an admin, a
-  builder, or a `walmart.com` guest to see scope change. It only works with `FOUNDRY_DEMO=1`.
+  builder, or a `walmart.com` guest to see scope change. It only works with `FOUNDRY_DEMO=1`, on
+  loopback, outside production, and with no `OIDC_ISSUER` set — a deployment signs in for real instead.
 - **Refresh from Airtable** is on the Governance console (admin persona only). It re-pulls
   everything in about eight seconds.
 - **Votes, requests and access requests write to Airtable immediately.** Open the matching table in the
@@ -145,10 +146,11 @@ npm run webhook -- create
 ```
 
 This needs the `webhook:manage` scope on the PAT (add it at https://airtable.com/create/tokens).
-State is stored in `data/webhook.json` (git-ignored). `npm run webhook -- status` shows the
-expiration (payload polling keeps extending it); `npm run webhook -- delete` removes it.
-A deployed instance can instead receive pushes: create with
-`--url https://host/api/webhooks/airtable`; the handler verifies the HMAC signature.
+State is stored in `data/webhook.json` locally (git-ignored), or in Vercel Blob on a deployment.
+`npm run webhook -- status` shows the expiration (payload polling keeps extending it);
+`npm run webhook -- delete` removes it. A deployed instance can instead receive pushes: create with
+`--url https://host/api/webhooks/airtable`; the handler verifies the HMAC signature, and the command
+prints the two environment variables to paste into Vercel (see section 8).
 Open pages notice new data within about 15 seconds and refresh themselves.
 
 ## 6c. Access requests
@@ -170,10 +172,79 @@ seeder skips this table.
 | Sync fails with 429 | Wait 30 seconds and re-run; the base's API budget was exhausted |
 | Sync fails with `fetch failed` / `ENOTFOUND` | A proxy is blocking `api.airtable.com`; ask IT to allowlist that exact host, and set `NODE_USE_ENV_PROXY=1` if you must go through a proxy |
 | Ask Foundry says "no model" | `ANTHROPIC_API_KEY` is not in `.env`; that is fine, keyword mode still works |
-| Persona switcher missing | `FOUNDRY_DEMO=1` is not set, or the app is not on 127.0.0.1 |
+| Persona switcher missing | `FOUNDRY_DEMO=1` is not set, the app is not on 127.0.0.1, or `OIDC_ISSUER` is set (they cannot coexist) |
 | Counts look stale | Press Refresh from Airtable, or run `npm run sync` |
+| Server refuses to start: "FOUNDRY_DEMO=1 and OIDC_ISSUER are both set" | Exactly what it says. Unset one; demo mode lets anyone become any user |
+| Deployed app says "Foundry needs a snapshot" | The Blob store is empty; run the first sync (section 9) |
+| Deployed `/api/jobs/*` answers 401 | `CRON_SECRET` is not set on the project, or the header does not match |
+| Sign-in bounces to "Foundry cannot sign you in" | The verified email has no active row in Airtable Users; the reason code is at the bottom of that page |
 
-## 8. Where things are
+## 8. Deploying to Vercel
+
+Local development is unchanged by any of this: with none of the variables below set, Foundry
+reads and writes `data/` exactly as in section 4.
+
+**What replaces what.** Vercel has no persistent disk and no background process, so:
+
+| On a laptop | On Vercel | Chosen by |
+|---|---|---|
+| `data/snapshot.json`, `schema.json`, `webhook.json` | Vercel Blob, one private blob each | `BLOB_READ_WRITE_TOKEN` |
+| in-memory conversations, rate limits, sync lock | Redis | `REDIS_URL` (or the Upstash REST pair) |
+| timers started by `instrumentation.ts` | the two crons in `vercel.json` | `VERCEL=1`, set by the platform |
+| persona switcher | OIDC sign-in | `OIDC_ISSUER` |
+
+**Steps.**
+
+1. Import the repo into a Vercel project. Node 24, framework Next.js, defaults otherwise.
+2. Add the **Vercel Blob** integration to the project. It sets `BLOB_READ_WRITE_TOKEN`.
+3. Add a **Redis** store from the Vercel Marketplace. It sets `REDIS_URL` (a `rediss://` URL).
+   Upstash's REST pair (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) works too.
+4. Set the remaining environment variables (all of them are described in `.env.example`):
+
+   ```
+   AIRTABLE_PAT=pat…
+   AIRTABLE_BASE_ID=app…
+   CRON_SECRET=<openssl rand -hex 32>
+   APP_URL=https://your-host
+   SESSION_SECRET=<openssl rand -hex 32>
+   OIDC_ISSUER=https://your-idp/…
+   OIDC_CLIENT_ID=…
+   OIDC_CLIENT_SECRET=…
+   ANTHROPIC_API_KEY=sk-ant-…     # optional
+   ```
+
+   Do **not** set `FOUNDRY_DEMO`. The process refuses to start with both it and `OIDC_ISSUER`.
+5. Register `https://your-host/auth/callback` as the redirect URI with the identity provider,
+   and ask it for the `openid email profile` scopes. Foundry uses the verified email and nothing else.
+6. Deploy. The first page load will say **Foundry needs a snapshot**, because the Blob store is
+   empty. Either use the button on that screen (it asks for `CRON_SECRET`) or run it by hand:
+
+   ```bash
+   curl -H "Authorization: Bearer $CRON_SECRET" https://your-host/api/jobs/sync
+   ```
+
+   Without the header that route answers 401.
+7. Check `https://your-host/api/health`. It should report
+   `{"ok":true, …, "store":"blob", "kv":"redis", "mode":"oidc"}` and a small `ageSeconds`.
+8. Optional, for near-instant updates: create the webhook pointing at the deployment, and paste
+   the two values it prints into the project's environment variables.
+
+   ```bash
+   npm run webhook -- create --url https://your-host/api/webhooks/airtable
+   ```
+
+   `AIRTABLE_WEBHOOK_ID` and `AIRTABLE_WEBHOOK_SECRET` take precedence over stored state, so the
+   deployment drains the right webhook even on a fresh Blob store.
+
+**The crons.** `vercel.json` schedules a full sync every 15 minutes and a payload drain every
+minute. Both take the same `sync:lock` key in Redis for 120 seconds, so a cron, a webhook push and
+an admin pressing *Refresh from Airtable* can never run at the same time — the loser logs
+`lock held, skipping` and returns.
+
+**Multiple clients.** `FOUNDRY_CLIENT=aands` loads `clients/aands/foundry.config.ts` instead of the
+root `foundry.config.ts`. Unset is the root file, which is what a laptop uses.
+
+## 9. Where things are
 
 | Path | Purpose |
 |---|---|
@@ -183,4 +254,9 @@ seeder skips this table.
 | `src/lib/scope.ts` | Who can see which bases: union of direct, group and workspace access |
 | `src/lib/requests.ts` | Ranking, NDA rule, vote quota, Airtable writes |
 | `src/app/` | Home, Build, Library, Roadmap, Resources, Ask Foundry, Admin |
-| `scripts/` | `sync.ts`, `seed.ts`, `check-scope.ts` |
+| `src/lib/store.ts` | Files under `data/` vs Vercel Blob + Redis; everything persisted goes through here |
+| `src/lib/identity/` | OIDC sign-in, the signed session cookie, and the demo persona provider |
+| `src/lib/worker.ts` | `fullSync()` and `drainWebhook()` under the shared lock, plus the local timers |
+| `src/proxy.ts` | The auth gate in front of every route |
+| `vercel.json` | The cron schedules that replace the local timers |
+| `scripts/` | `sync.ts`, `seed.ts`, `webhook.ts`, `check-scope.ts` |

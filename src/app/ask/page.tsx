@@ -1,4 +1,4 @@
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData } from "@/lib/snapshot";
 import { canSee } from "@/lib/requests";
@@ -8,7 +8,7 @@ import { AskChat } from "@/components/AskChat";
 import { Chip } from "@/components/Chip";
 
 export default async function Ask() {
-  const data = getData();
+  const data = await getData();
   const me = await getCurrentUser();
   const mode = assistantMode();
   const allRequests = data.requests.filter((r) => r.title).length;

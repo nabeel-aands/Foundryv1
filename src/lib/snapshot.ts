@@ -1,5 +1,6 @@
-import fs from "node:fs";
-import { SNAPSHOT_PATH, type CanonRecord, type Snapshot } from "./sync";
+import { loadSchema, schemaLoaded } from "./schema";
+import { getStore } from "./store";
+import { type CanonRecord, type Snapshot } from "./sync";
 
 /* ---------- typed views over canonical records ---------- */
 
@@ -72,9 +73,9 @@ export type Data = {
   votesByRequest: Map<string, VoteRow[]>;
 };
 
-/* ---------- loading with mtime cache ---------- */
+/* ---------- loading, cached on the store's version stamp ---------- */
 
-type Cache = { mtimeMs: number; data: Data };
+type Cache = { updatedAt: string; data: Data };
 const g = globalThis as unknown as { __foundrySnapshot?: Cache };
 
 function index<T extends CanonRecord>(rows: T[]): Map<string, T> {
@@ -152,17 +153,31 @@ function build(snap: Snapshot): Data {
   };
 }
 
-export function hasSnapshot(): boolean {
-  return fs.existsSync(SNAPSHOT_PATH);
+export async function hasSnapshot(): Promise<boolean> {
+  return !!(await getStore().stat("snapshot"));
 }
 
-/** Load the snapshot, re-reading only when the file changed. Server-side only. */
-export function getData(): Data {
-  const stat = fs.statSync(SNAPSHOT_PATH);
-  if (g.__foundrySnapshot && g.__foundrySnapshot.mtimeMs === stat.mtimeMs) return g.__foundrySnapshot.data;
-  const snap = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, "utf8")) as Snapshot;
+/**
+ * Load the snapshot and its indexes. The store's updatedAt stamp is the cache key, so a
+ * request reads Blob at most once per snapshot version; on a laptop that is the file mtime.
+ * Loading the schema alongside keeps the synchronous field-id accessors usable downstream.
+ * Server-side only.
+ */
+export async function getData(): Promise<Data> {
+  const store = getStore();
+  const stat = await store.stat("snapshot");
+  if (!stat) throw new Error("No snapshot stored yet. Run npm run sync (or hit /api/jobs/sync).");
+  if (g.__foundrySnapshot?.updatedAt === stat.updatedAt) {
+    // The sync writes schema and snapshot together, so an unchanged snapshot means an
+    // unchanged schema: no second round trip to the store.
+    if (!schemaLoaded()) await loadSchema();
+    return g.__foundrySnapshot.data;
+  }
+  const snap = await store.getJson<Snapshot>("snapshot");
+  if (!snap) throw new Error("No snapshot stored yet. Run npm run sync (or hit /api/jobs/sync).");
+  await loadSchema();
   const data = build(snap);
-  g.__foundrySnapshot = { mtimeMs: stat.mtimeMs, data };
+  g.__foundrySnapshot = { updatedAt: stat.updatedAt, data };
   return data;
 }
 

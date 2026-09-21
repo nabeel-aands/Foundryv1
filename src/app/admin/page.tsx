@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { displayName, getData, stewardName } from "@/lib/snapshot";
 import { isExternal, isSandboxWorkspace } from "@/lib/scope";
@@ -13,7 +13,7 @@ import { refreshAll } from "../actions";
 export default async function Admin() {
   const me = await getCurrentUser();
   if (!me.isAdmin) redirect("/?msg=admin");
-  const data = getData();
+  const data = await getData();
   const users = data.users;
   const active = users.filter((u) => (u.status ?? "").toLowerCase() === "active");
   const deactivated = users.length - active.length;

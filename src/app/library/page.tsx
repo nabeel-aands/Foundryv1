@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { foundryConfig } from "../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData, stewardName, type Base } from "@/lib/snapshot";
 import { isSandboxWorkspace } from "@/lib/scope";
@@ -10,7 +10,7 @@ import { accessRequestsAvailable, pendingRequestFor } from "@/lib/access";
 
 export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string; locked?: string; msg?: string }> }) {
   const { q = "", locked, msg } = await searchParams;
-  const data = getData();
+  const data = await getData();
   const me = await getCurrentUser();
   const arAvailable = accessRequestsAvailable();
   const backUrl = `/library?q=${encodeURIComponent(q)}${locked ? "&locked=1" : ""}`;

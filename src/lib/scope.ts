@@ -1,4 +1,4 @@
-import { foundryConfig } from "../../foundry.config";
+import { foundryConfig } from "./config";
 import { emailDomain, type Data, type User } from "./snapshot";
 
 export type Role = "admin" | "builder" | "user";

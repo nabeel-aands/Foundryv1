@@ -1,8 +1,8 @@
-import { foundryConfig } from "../../foundry.config";
+import { foundryConfig } from "./config";
 import { Airtable } from "./airtable";
 import { fieldId, hasField, pickChoice, tableId } from "./schema";
-import { invalidateSnapshot, type Data, type RequestRow, type User, type VoteRow } from "./snapshot";
-import { runSync } from "./sync";
+import { type Data, type RequestRow, type User, type VoteRow } from "./snapshot";
+import { syncTables } from "./worker";
 import type { CurrentUser } from "./persona";
 
 export type RankedRequest = {
@@ -57,8 +57,7 @@ function nameOf(data: Data, userId?: string): string {
 }
 
 async function refreshFoundryTables() {
-  await runSync({ only: ["requests", "votes"] });
-  invalidateSnapshot();
+  await syncTables(["requests", "votes"]);
 }
 
 export type VoteResult = { ok: true } | { ok: false; reason: string };

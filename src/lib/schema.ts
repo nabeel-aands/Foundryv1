@@ -1,20 +1,47 @@
-import fs from "node:fs";
-import { SCHEMA_PATH, type SchemaMap } from "./sync";
+/**
+ * Pinned field and table IDs, read from the store (data/schema.json locally, a private blob
+ * on Vercel). Loading is async because the store is; the accessors stay synchronous because
+ * every write path already has the data in hand by the time it names a field.
+ *
+ * `loadSchema()` primes the process-level cache and is called by `getData()`, so any code
+ * that has a snapshot has a schema too. Calling an accessor before that throws with the fix.
+ */
+import type { SchemaMap } from "./sync";
 import type { TableKey } from "./fields";
+import { getStore } from "./store";
 
-let cache: { mtimeMs: number; schema: SchemaMap } | undefined;
+type Cache = { updatedAt: string; schema: SchemaMap };
+const g = globalThis as unknown as { __foundrySchema?: Cache };
+
+/** Read the schema, re-reading only when the store says it changed. */
+export async function loadSchema(): Promise<SchemaMap> {
+  const store = getStore();
+  const stat = await store.stat("schema");
+  if (!stat) throw new Error("No schema stored yet. Run npm run sync (or hit /api/jobs/sync).");
+  if (g.__foundrySchema?.updatedAt === stat.updatedAt) return g.__foundrySchema.schema;
+  const schema = await store.getJson<SchemaMap>("schema");
+  if (!schema) throw new Error("No schema stored yet. Run npm run sync (or hit /api/jobs/sync).");
+  g.__foundrySchema = { updatedAt: stat.updatedAt, schema };
+  return schema;
+}
+
+export function schemaLoaded(): boolean {
+  return !!g.__foundrySchema;
+}
+
+export function invalidateSchema(): void {
+  g.__foundrySchema = undefined;
+}
 
 export function getSchema(): SchemaMap {
-  const stat = fs.statSync(SCHEMA_PATH);
-  if (cache && cache.mtimeMs === stat.mtimeMs) return cache.schema;
-  const schema = JSON.parse(fs.readFileSync(SCHEMA_PATH, "utf8")) as SchemaMap;
-  cache = { mtimeMs: stat.mtimeMs, schema };
-  return schema;
+  const c = g.__foundrySchema;
+  if (!c) throw new Error("Schema not loaded. Await getData() or loadSchema() before reading field ids.");
+  return c.schema;
 }
 
 export function tableId(key: TableKey): string {
   const t = getSchema().tables[key];
-  if (!t) throw new Error(`Table "${key}" is not in schema.json. Run npm run sync.`);
+  if (!t) throw new Error(`Table "${key}" is not in the stored schema. Run npm run sync.`);
   return t.id;
 }
 

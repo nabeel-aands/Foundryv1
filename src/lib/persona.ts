@@ -1,10 +1,26 @@
 import { cookies } from "next/headers";
-import { foundryConfig } from "../../foundry.config";
-import { isDemoMode } from "./env";
+import { foundryConfig } from "./config";
+import { authMode, getIdentity, PERSONA_COOKIE, type DenialReason } from "./identity";
 import { computeScope, isExternal, orgUnitFor, roleFor, type Role, type Scope } from "./scope";
 import { displayName, getData, type Data, type User } from "./snapshot";
 
-export const PERSONA_COOKIE = "foundry_persona";
+export { PERSONA_COOKIE };
+
+/** Thrown when a signed-in identity is not allowed in; the layout turns it into the denial page. */
+export class AccessDenied extends Error {
+  constructor(readonly reason: DenialReason) {
+    super(`access denied: ${reason}`);
+    this.name = "AccessDenied";
+  }
+}
+
+/** Thrown in OIDC mode when there is no session; the layout redirects to /auth/login. */
+export class NotSignedIn extends Error {
+  constructor() {
+    super("not signed in");
+    this.name = "NotSignedIn";
+  }
+}
 
 export type CurrentUser = {
   user: User;
@@ -44,12 +60,18 @@ export function resolveUser(data: Data, user: User): CurrentUser {
   };
 }
 
-/** The persona for this request. Falls back to a sensible default when no cookie is set. */
+/**
+ * Who this request is. The active Identity decides; everything downstream (scope, roles,
+ * write actors) is unchanged. In demo and open mode an unknown caller falls back to the
+ * default persona exactly as in v1; in OIDC mode it is an error the layout handles.
+ */
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const data = getData();
+  const data = await getData();
   const jar = await cookies();
-  const id = isDemoMode() ? jar.get(PERSONA_COOKIE)?.value : undefined;
-  const user = (id ? data.userById.get(id) : undefined) ?? defaultPersona(data);
+  const r = await getIdentity().resolve(data, jar);
+  if (r.kind === "denied") throw new AccessDenied(r.reason);
+  if (r.kind === "anonymous" && authMode() === "oidc") throw new NotSignedIn();
+  const user = r.kind === "user" ? r.user : defaultPersona(data);
   if (!user) throw new Error("No users in snapshot. Run npm run sync.");
   return resolveUser(data, user);
 }

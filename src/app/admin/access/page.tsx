@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { foundryConfig } from "../../../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
-import { displayName, getData, type AccessRequestRow } from "@/lib/snapshot";
+import { displayName, getData, type AccessRequestRow, type Data } from "@/lib/snapshot";
 import { accessRequestsAvailable, decidedRecently, effectiveSensitivity, pendingFor, resourceName, resourceOf, resourceWorkspace } from "@/lib/access";
 import { labelForSource } from "@/lib/labels";
 import { Chip, SensitivityChip } from "@/components/Chip";
@@ -12,7 +12,7 @@ function ageDays(r: AccessRequestRow): number {
 }
 
 /** Where the admin grants access by hand: the base's admin-panel Source URL, else the base itself. */
-function grantHref(data: ReturnType<typeof getData>, r: AccessRequestRow): string | undefined {
+function grantHref(data: Data, r: AccessRequestRow): string | undefined {
   const res = resourceOf(data, r);
   const base = res?.kind === "interface" ? res.base : res?.base;
   return base?.sourceUrl ?? (base?.baseId ? foundryConfig.urls.base(base.baseId) : undefined);
@@ -22,7 +22,7 @@ export default async function AccessAdmin({ searchParams }: { searchParams: Prom
   const { msg } = await searchParams;
   const me = await getCurrentUser();
   if (!me.isAdmin) redirect("/?msg=admin");
-  const data = getData();
+  const data = await getData();
   const pending = pendingFor(data, me);
   const decided = decidedRecently(data, 30);
   const name = (ids?: string[]) => displayName(ids?.[0] ? data.userById.get(ids[0]) : undefined);

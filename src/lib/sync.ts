@@ -1,8 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
-import { foundryConfig } from "../../foundry.config";
+import { foundryConfig } from "./config";
 import { Airtable, type TableSchema } from "./airtable";
 import { FIELD_ALIASES, REQUIRED_FIELDS, TABLE_KEYS, normalizeName, type TableKey } from "./fields";
+import { getStore, storeKind } from "./store";
 
 export type CanonRecord = { id: string; createdTime: string } & Record<string, unknown>;
 
@@ -25,9 +24,7 @@ export type Snapshot = {
   tables: Record<TableKey, CanonRecord[]>;
 };
 
-export const DATA_DIR = path.join(process.cwd(), "data");
-export const SNAPSHOT_PATH = path.join(DATA_DIR, "snapshot.json");
-export const SCHEMA_PATH = path.join(DATA_DIR, "schema.json");
+export { DATA_DIR } from "./store";
 
 function findTable(schema: TableSchema[], wanted: string): TableSchema | undefined {
   const n = normalizeName(wanted);
@@ -72,14 +69,6 @@ function canonicalize(map: TableMap, rec: { id: string; createdTime: string; fie
   return out;
 }
 
-function readJson<T>(p: string): T | undefined {
-  try {
-    return JSON.parse(fs.readFileSync(p, "utf8")) as T;
-  } catch {
-    return undefined;
-  }
-}
-
 export type SyncOptions = { only?: TableKey[]; log?: (line: string) => void };
 
 /**
@@ -93,9 +82,10 @@ export async function runSync(opts: SyncOptions = {}): Promise<Snapshot> {
   const started = Date.now();
 
   log("Fetching base schema…");
+  const store = getStore();
   const { tables: schemaTables } = await at.getSchema();
-  const previousSchema = readJson<SchemaMap>(SCHEMA_PATH);
-  const previous = readJson<Snapshot>(SNAPSHOT_PATH);
+  const previousSchema = await store.getJson<SchemaMap>("schema");
+  const previous = await store.getJson<Snapshot>("snapshot");
   const keys = opts.only ?? TABLE_KEYS;
 
   const tableMaps = (previousSchema?.tables ?? {}) as Record<TableKey, TableMap>;
@@ -122,9 +112,9 @@ export async function runSync(opts: SyncOptions = {}): Promise<Snapshot> {
 
   const fetchedAt = new Date().toISOString();
   const snapshot: Snapshot = { fetchedAt, counts, warnings, tables };
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(SCHEMA_PATH, JSON.stringify({ baseId: at.baseId, fetchedAt, tables: tableMaps } satisfies SchemaMap, null, 2));
-  fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshot));
-  log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s → ${path.relative(process.cwd(), SNAPSHOT_PATH)}`);
+  // Schema first: a page that reads the new snapshot must never miss a field id it names.
+  await store.putJson("schema", { baseId: at.baseId, fetchedAt, tables: tableMaps } satisfies SchemaMap);
+  await store.putJson("snapshot", snapshot);
+  log(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s → ${storeKind() === "blob" ? "Vercel Blob" : "data/snapshot.json"}`);
   return snapshot;
 }

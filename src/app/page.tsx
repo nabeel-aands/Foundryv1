@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { foundryConfig } from "../../foundry.config";
+import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
 import { getData, stewardName } from "@/lib/snapshot";
 import { rankRequests } from "@/lib/requests";
 import { Chip } from "@/components/Chip";
 
 export default async function Home() {
-  const data = getData();
+  const data = await getData();
   const me = await getCurrentUser();
   const inScopeBases = me.isAdmin ? data.bases.length : me.scope.bases.size;
   const inScopeInterfaces = me.isAdmin ? data.interfaces.length : me.scope.interfaces.size;

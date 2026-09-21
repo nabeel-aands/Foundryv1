@@ -23,7 +23,7 @@ function accessRequestsReady(): boolean {
 
 async function main() {
   const at = Airtable.fromEnv();
-  let data = getData();
+  let data = await getData();
 
   if (wipe) {
     const seeded = (rows: { id: string; recordSource?: string }[]) => rows.filter((r) => /seed/i.test(r.recordSource ?? "")).map((r) => r.id);
@@ -141,7 +141,7 @@ async function main() {
 
   await runSync({ only: accessRequestsReady() ? ["requests", "votes", "accessRequests"] : ["requests", "votes"], log: (l) => console.log(l) });
   invalidateSnapshot();
-  data = getData();
+  data = await getData();
   console.log(`Snapshot now has ${data.requests.length} requests, ${data.votes.length} votes and ${data.accessRequests.length} access requests.`);
 }
 

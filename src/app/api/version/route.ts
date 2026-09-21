@@ -2,9 +2,10 @@
 import { getData, hasSnapshot } from "@/lib/snapshot";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  if (!hasSnapshot()) return Response.json({ fetchedAt: null, counts: {} });
-  const data = getData();
+  if (!(await hasSnapshot())) return Response.json({ fetchedAt: null, counts: {} });
+  const data = await getData();
   return Response.json({ fetchedAt: data.fetchedAt, counts: data.counts });
 }
