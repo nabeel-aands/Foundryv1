@@ -1,6 +1,6 @@
 # Foundry v1.2 build plan: deployable on Vercel
 
-Three features, in this order. Written for an implementing agent working in this repo. Read
+Two features to build now (1 and 2), in this order. Feature 3 is deferred; do not build it unless told to. Written for an implementing agent working in this repo. Read
 `README.md`, `HANDOFF.md`, `docs/PLAN-v1.1.md` (its rules block applies here too) and the files named
 under each feature before changing anything. Local development must keep working exactly as today
 (`npm run dev` with files under `data/`); Vercel is an additional target, not a replacement.
@@ -120,7 +120,7 @@ table; that row is the session. The persona switcher is compiled out unless demo
 
 ---
 
-## 3. Activity Log
+## 3. Activity Log (DEFERRED, not in scope for this pass)
 
 ### Goal
 Every governance write records who did what, in Airtable, because Airtable's own history attributes token
