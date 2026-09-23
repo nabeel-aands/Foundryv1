@@ -4,7 +4,8 @@
  */
 import { cookies } from "next/headers";
 import { authMode } from "@/lib/identity";
-import { buildAuthorizationRequest } from "@/lib/identity/oidc";
+import * as airtable from "@/lib/identity/airtable";
+import * as oidc from "@/lib/identity/oidc";
 import { writeLoginState } from "@/lib/identity/session";
 
 export const runtime = "nodejs";
@@ -17,10 +18,11 @@ function safeReturnTo(raw: string | null): string {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  if (authMode() !== "oidc") return Response.redirect(new URL("/", request.url), 302);
+  const mode = authMode();
+  if (mode !== "oidc" && mode !== "airtable") return Response.redirect(new URL("/", request.url), 302);
   const returnTo = safeReturnTo(new URL(request.url).searchParams.get("returnTo"));
   try {
-    const { url, state, codeVerifier } = await buildAuthorizationRequest();
+    const { url, state, codeVerifier } = mode === "airtable" ? airtable.buildAuthorizationRequest() : await oidc.buildAuthorizationRequest();
     writeLoginState(await cookies(), { state, codeVerifier, returnTo });
     return Response.redirect(url, 302);
   } catch (e) {

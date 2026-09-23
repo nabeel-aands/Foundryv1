@@ -14,7 +14,7 @@ export class AccessDenied extends Error {
   }
 }
 
-/** Thrown in OIDC mode when there is no session; the layout redirects to /auth/login. */
+/** Thrown in a signed-in mode when there is no session; the layout redirects to sign-in. */
 export class NotSignedIn extends Error {
   constructor() {
     super("not signed in");
@@ -63,14 +63,15 @@ export function resolveUser(data: Data, user: User): CurrentUser {
 /**
  * Who this request is. The active Identity decides; everything downstream (scope, roles,
  * write actors) is unchanged. In demo and open mode an unknown caller falls back to the
- * default persona exactly as in v1; in OIDC mode it is an error the layout handles.
+ * default persona exactly as in v1; with a real provider it is an error the layout handles.
  */
 export async function getCurrentUser(): Promise<CurrentUser> {
   const data = await getData();
   const jar = await cookies();
   const r = await getIdentity().resolve(data, jar);
   if (r.kind === "denied") throw new AccessDenied(r.reason);
-  if (r.kind === "anonymous" && authMode() === "oidc") throw new NotSignedIn();
+  const mode = authMode();
+  if (r.kind === "anonymous" && (mode === "oidc" || mode === "airtable")) throw new NotSignedIn();
   const user = r.kind === "user" ? r.user : defaultPersona(data);
   if (!user) throw new Error("No users in snapshot. Run npm run sync.");
   return resolveUser(data, user);

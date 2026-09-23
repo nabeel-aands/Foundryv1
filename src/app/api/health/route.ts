@@ -2,7 +2,7 @@
  * Liveness and configuration check. Reads the store only — never calls Airtable — so it is
  * safe to hit from an uptime monitor and safe before the first sync has run.
  */
-import { authMode } from "@/lib/identity";
+import { airtableConfigured, authMode, oidcConfigured } from "@/lib/identity";
 import { hasSnapshot } from "@/lib/snapshot";
 import { getStore, kvKind, storeKind } from "@/lib/store";
 import type { Snapshot } from "@/lib/sync";
@@ -12,7 +12,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<Response> {
-  const base = { store: storeKind(), kv: kvKind(), mode: authMode() };
+  // `provider` is what is configured, not what is selected: it tells an operator which
+  // credentials reached the environment without echoing any of their values.
+  const base = {
+    store: storeKind(), kv: kvKind(), mode: authMode(),
+    provider: { airtable: airtableConfigured(), oidc: oidcConfigured() },
+  };
 
   if (!(await hasSnapshot())) {
     return Response.json({ ok: false, error: "no snapshot yet — run /api/jobs/sync", fetchedAt: null, ageSeconds: null, counts: {}, webhook: null, ...base }, { status: 503 });

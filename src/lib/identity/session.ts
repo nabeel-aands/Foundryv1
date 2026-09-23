@@ -1,7 +1,9 @@
 /**
  * Signed cookies. Two of them:
  *   foundry_session — { userRecordId, exp }, 8 hours, refreshed on activity.
- *   foundry_oidc    — { state, codeVerifier, returnTo }, 10 minutes, one login attempt.
+ *   foundry_login   — { state, codeVerifier, returnTo }, 10 minutes, one login attempt.
+ *                     It served OIDC alone as foundry_oidc; that name is still read, so a
+ *                     login started by the previous release still completes.
  *
  * Both are HMAC-SHA256 over the JSON with SESSION_SECRET, HTTP-only, SameSite=Lax.
  * Nothing here trusts a cookie it did not sign, and a payload whose signature or
@@ -11,9 +13,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "foundry_session";
-export const OIDC_COOKIE = "foundry_oidc";
+export const LOGIN_COOKIE = "foundry_login";
+/** Read for one release, never written: v1.2 parked the login state here. */
+export const LEGACY_LOGIN_COOKIE = "foundry_oidc";
 export const SESSION_TTL_SECONDS = 8 * 60 * 60;
-export const OIDC_TTL_SECONDS = 10 * 60;
+export const LOGIN_TTL_SECONDS = 10 * 60;
 /** Re-issue the cookie once it is this close to expiring, so an active session never dies mid-task. */
 const REFRESH_WHEN_REMAINING_SECONDS = 7 * 60 * 60;
 
@@ -81,15 +85,19 @@ export function clearSession(jar: CookieJar): void {
 }
 
 export function writeLoginState(jar: CookieJar, value: LoginState): void {
-  jar.set(OIDC_COOKIE, sign(value), {
-    httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies(), maxAge: OIDC_TTL_SECONDS,
+  jar.set(LOGIN_COOKIE, sign(value), {
+    httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies(), maxAge: LOGIN_TTL_SECONDS,
   });
 }
 
 export function readLoginState(jar: CookieJar): LoginState | undefined {
-  return verify<LoginState>(jar.get(OIDC_COOKIE)?.value);
+  return verify<LoginState>(jar.get(LOGIN_COOKIE)?.value ?? jar.get(LEGACY_LOGIN_COOKIE)?.value);
 }
 
 export function clearLoginState(jar: CookieJar): void {
-  jar.set(OIDC_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies(), maxAge: 0 });
+  jar.set(LOGIN_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies(), maxAge: 0 });
+  // Only when it is actually there, so a normal sign-out sends one Set-Cookie header, not two.
+  if (jar.get(LEGACY_LOGIN_COOKIE)) {
+    jar.set(LEGACY_LOGIN_COOKIE, "", { httpOnly: true, sameSite: "lax", path: "/", secure: secureCookies(), maxAge: 0 });
+  }
 }

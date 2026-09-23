@@ -4,18 +4,9 @@
  * invocation does not re-fetch the provider's metadata document.
  */
 import type * as clientNs from "openid-client";
+import { appUrl, redirectUri } from "./urls";
 
 export type OidcConfig = Awaited<ReturnType<typeof clientNs.discovery>>;
-
-export function appUrl(): string {
-  const v = process.env.APP_URL?.trim();
-  if (!v) throw new Error("APP_URL is required in OIDC mode (for example https://foundry.example.com). It builds the redirect URI.");
-  return v.replace(/\/+$/, "");
-}
-
-export function redirectUri(): string {
-  return `${appUrl()}/auth/callback`;
-}
 
 export function oidcScope(): string {
   return process.env.OIDC_SCOPE?.trim() || "openid email profile";

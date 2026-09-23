@@ -1,9 +1,9 @@
 /**
  * The authentication gate, in front of everything.
  *
- * In OIDC mode an unauthenticated request is redirected to /auth/login with the path it
- * wanted; API routes get a 401 JSON instead of a redirect a fetch() cannot follow usefully.
- * Open and demo mode let everything through, exactly as v1 did.
+ * With a provider configured an unauthenticated request is redirected to sign-in with the
+ * path it wanted; API routes get a 401 JSON instead of a redirect a fetch() cannot follow
+ * usefully. Open and demo mode let everything through, exactly as v1 did.
  *
  * This runs before the app, so it re-implements the session check rather than importing
  * lib/identity — it verifies the cookie's HMAC and expiry and nothing else. Whether that
@@ -32,8 +32,21 @@ function sessionValid(token: string | undefined, secret: string): boolean {
   }
 }
 
+/**
+ * Mirrors authProvider() in lib/identity, deliberately rather than importing it: this runs
+ * before the app and may be deployed to an edge that never loaded it. An unrecognised
+ * AUTH_PROVIDER gates nothing here, and assertAuthConfig() has already refused to boot.
+ */
+function gatedProvider(): "airtable" | "oidc" | undefined {
+  const named = process.env.AUTH_PROVIDER?.trim().toLowerCase();
+  if (named === "airtable" || named === "oidc") return named;
+  if (!named && process.env.OIDC_ISSUER?.trim()) return "oidc";
+  return undefined;
+}
+
 export function proxy(request: NextRequest): NextResponse {
-  if (!process.env.OIDC_ISSUER?.trim()) return NextResponse.next();
+  const provider = gatedProvider();
+  if (!provider) return NextResponse.next();
 
   const { pathname, search } = request.nextUrl;
   if (PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, "") || pathname.startsWith(p))) return NextResponse.next();
@@ -44,7 +57,8 @@ export function proxy(request: NextRequest): NextResponse {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ ok: false, error: "not signed in" }, { status: 401 });
   }
-  const login = new URL("/auth/login", request.url);
+  // Airtable mode asks first, with a button; OIDC mode goes straight to the company provider.
+  const login = new URL(provider === "airtable" ? "/auth/signin" : "/auth/login", request.url);
   login.searchParams.set("returnTo", `${pathname}${search}`);
   return NextResponse.redirect(login);
 }

@@ -23,9 +23,11 @@ npm run dev                 # http://127.0.0.1:3000
 
 Foundry also runs on Vercel with no persistent disk: Vercel Blob holds the snapshot, schema and
 webhook state, Redis holds conversations, rate limits and the sync lock, and the two crons in
-`vercel.json` replace the background timers. Sign-in is OIDC against the company identity provider;
-the verified email is matched to a row in the synced Users table and that row is the session.
-`HANDOFF.md` has the step-by-step, including the one curl that seeds the first snapshot.
+`vercel.json` replace the background timers. Sign-in is one of two providers, chosen by
+`AUTH_PROVIDER`: **Sign in with Airtable** (the Airtable user ID is matched to a row in the synced
+Users table) or **OIDC** against the company identity provider (the verified email is matched
+instead). Either way that row is the session, and Foundry stores no provider tokens. `HANDOFF.md`
+has the step-by-step, including the one curl that seeds the first snapshot.
 
 ## What is where
 
@@ -37,16 +39,17 @@ the verified email is matched to a row in the synced Users table and that row is
 | `src/lib/fields.ts` | Canonical field keys and the Airtable field-name aliases they match |
 | `src/lib/sync.ts` | Schema → field IDs → all tables → snapshot + schema documents in the store |
 | `src/lib/snapshot.ts` | Loads the snapshot, builds indexes and joins |
-| `src/lib/identity/` | Who the request is: the demo persona cookie, or OIDC sign-in and the session cookie |
+| `src/lib/identity/` | Who the request is: the demo persona cookie, or Airtable/OIDC sign-in and the session cookie |
 | `src/lib/worker.ts` | `fullSync()` and `drainWebhook()` under a shared lock, plus the local timers |
 | `src/lib/scope.ts` | Effective access as a union over direct, group and workspace paths; roles; org units |
 | `src/lib/persona.ts` | Demo persona cookie → current user (only when `FOUNDRY_DEMO=1`) |
 | `src/lib/requests.ts` | Ranking, NDA rule, vote quota, Airtable writes for votes and requests |
 | `src/app/` | Home, Build wizard, Library, Roadmap, Resources, Ask Foundry, Admin console |
 | `src/app/api/jobs/` | `sync` and `drain`, the cron entry points (Bearer `CRON_SECRET`) |
-| `src/proxy.ts` | The auth gate: unauthenticated requests go to `/auth/login` in OIDC mode |
+| `src/proxy.ts` | The auth gate: with a provider configured, unauthenticated requests go to sign-in |
 | `vercel.json` | The two cron schedules that replace the local timers |
 | `scripts/` | `sync.ts`, `seed.ts`, `webhook.ts`, `check-scope.ts` |
+| `src/lib/**/*.test.ts` | Unit tests, run offline with `npm test` (vitest) |
 
 ## Rules the code follows
 
@@ -57,7 +60,7 @@ the verified email is matched to a row in the synced Users table and that row is
 5. One process-wide limiter under 4 requests per second, 30 second back-off on 429.
 6. Fields are read by pinned ID from `data/schema.json`; a renamed column fails at sync, not in a page.
 7. Every number carries a Real, Seeded, Demo or Modelled chip computed from its source.
-8. The persona switcher only works with `FOUNDRY_DEMO=1`, outside production, on loopback, with no OIDC issuer configured. `FOUNDRY_DEMO=1` beside `OIDC_ISSUER` is a boot failure, not a warning.
+8. The persona switcher only works with `FOUNDRY_DEMO=1`, outside production, on loopback, with no sign-in provider configured. `FOUNDRY_DEMO=1` beside a provider is a boot failure, not a warning.
 9. Nothing touches the filesystem outside `src/lib/store.ts`. Everything persisted goes through `Store` (documents) or `KV` (short-lived keys), so the same code runs on Vercel.
 10. Both sync jobs take the `sync:lock` key before doing anything, so a cron, a webhook push and an admin pressing Refresh can never overlap.
 

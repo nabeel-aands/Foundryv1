@@ -1,13 +1,14 @@
 /**
  * Who is making this request.
  *
- * Two providers behind one interface:
+ * Three providers behind one interface:
  *   PersonaIdentity — the demo cookie. Only on a loopback laptop with FOUNDRY_DEMO=1 and no
- *                     OIDC issuer configured. Anywhere else it refuses to exist.
- *   OidcIdentity    — the signed session cookie written by /auth/callback, whose verified
- *                     email was matched against the synced Users table.
+ *                     real provider configured. Anywhere else it refuses to exist.
+ *   SessionIdentity — the signed session cookie written by /auth/callback, after the person
+ *                     who signed in was matched against the synced Users table: by verified
+ *                     email in OIDC mode, by Airtable user ID in Airtable mode.
  *
- * "open" is the third mode: no OIDC, no demo. That is today's behaviour for a laptop run
+ * "open" is the fourth mode: no provider, no demo. That is today's behaviour for a laptop run
  * without FOUNDRY_DEMO — everyone is the default persona, nothing is gated. A production
  * build in that mode logs a loud warning at boot.
  */
@@ -17,7 +18,9 @@ import { readSession, refreshSession, type CookieJar } from "./session";
 
 export const PERSONA_COOKIE = "foundry_persona";
 
-export type AuthMode = "demo" | "oidc" | "open";
+export type AuthMode = "airtable" | "demo" | "oidc" | "open";
+/** The two providers that actually sign someone in. */
+export type AuthProvider = "airtable" | "oidc";
 
 export type Resolution =
   | { kind: "user"; user: User }
@@ -41,14 +44,29 @@ export function oidcConfigured(): boolean {
   return !!process.env.OIDC_ISSUER?.trim();
 }
 
+/** Credentials present, which is not the same as selected: AUTH_PROVIDER selects. */
+export function airtableConfigured(): boolean {
+  return !!process.env.AIRTABLE_OAUTH_CLIENT_ID?.trim() && !!process.env.AIRTABLE_OAUTH_CLIENT_SECRET?.trim();
+}
+
+/**
+ * Which real provider is in charge, if any. AUTH_PROVIDER names it; with AUTH_PROVIDER unset,
+ * OIDC_ISSUER still implies OIDC, so every v1.2 deployment keeps the behaviour it has today.
+ * An unrecognised value is not silently a provider — assertAuthConfig() refuses it at boot.
+ */
+export function authProvider(): AuthProvider | undefined {
+  const named = process.env.AUTH_PROVIDER?.trim().toLowerCase();
+  if (named === "airtable" || named === "oidc") return named;
+  if (!named && oidcConfigured()) return "oidc";
+  return undefined;
+}
+
 export function demoAllowed(): boolean {
-  return process.env.FOUNDRY_DEMO === "1" && process.env.NODE_ENV !== "production" && loopbackHost() && !oidcConfigured();
+  return process.env.FOUNDRY_DEMO === "1" && process.env.NODE_ENV !== "production" && loopbackHost() && !authProvider();
 }
 
 export function authMode(): AuthMode {
-  if (oidcConfigured()) return "oidc";
-  if (demoAllowed()) return "demo";
-  return "open";
+  return authProvider() ?? (demoAllowed() ? "demo" : "open");
 }
 
 /**
@@ -56,9 +74,18 @@ export function authMode(): AuthMode {
  * failure with a readable message rather than a surprise on the first request.
  */
 export function assertAuthConfig(): void {
-  if (process.env.FOUNDRY_DEMO === "1" && oidcConfigured()) {
+  const named = process.env.AUTH_PROVIDER?.trim().toLowerCase();
+  if (named && named !== "airtable" && named !== "oidc") {
+    throw new Error(`AUTH_PROVIDER="${process.env.AUTH_PROVIDER}" is not a provider. Use "airtable" or "oidc", or leave it unset for demo/open mode.`);
+  }
+  if (named === "airtable" && oidcConfigured()) {
     throw new Error(
-      "FOUNDRY_DEMO=1 and OIDC_ISSUER are both set. Demo mode lets anyone become any user, so it cannot run beside real sign-in. Unset FOUNDRY_DEMO for a deployment, or unset OIDC_ISSUER for a demo laptop.",
+      "AUTH_PROVIDER=airtable and OIDC_ISSUER are both set. Foundry signs in with one provider at a time. Unset OIDC_ISSUER, or set AUTH_PROVIDER=oidc to keep using it.",
+    );
+  }
+  if (process.env.FOUNDRY_DEMO === "1" && authProvider()) {
+    throw new Error(
+      `FOUNDRY_DEMO=1 and ${named === "airtable" ? "AUTH_PROVIDER=airtable" : "OIDC sign-in"} are both set. Demo mode lets anyone become any user, so it cannot run beside real sign-in. Unset FOUNDRY_DEMO for a deployment, or unset ${named ? "AUTH_PROVIDER" : "OIDC_ISSUER"} for a demo laptop.`,
     );
   }
   // The rest are warnings, not failures: demoAllowed() has already turned the switcher off in
@@ -68,11 +95,17 @@ export function assertAuthConfig(): void {
     console.warn(`[foundry] FOUNDRY_DEMO=1 ignored: ${why}. The persona switcher is off.`);
   }
   if (authMode() === "open" && process.env.NODE_ENV === "production") {
-    console.warn("[foundry] No OIDC_ISSUER: every visitor is the same default user. Set OIDC_ISSUER before letting anyone else reach this instance.");
+    console.warn("[foundry] No sign-in provider: every visitor is the same default user. Set AUTH_PROVIDER (airtable or oidc) before letting anyone else reach this instance.");
   }
   if (authMode() === "oidc") {
     for (const name of ["OIDC_CLIENT_ID", "APP_URL", "SESSION_SECRET"]) {
-      if (!process.env[name]?.trim()) throw new Error(`OIDC_ISSUER is set, so ${name} is required too. See .env.example.`);
+      if (!process.env[name]?.trim()) throw new Error(`OIDC sign-in is selected, so ${name} is required too. See .env.example.`);
+    }
+    if (!oidcConfigured()) throw new Error("AUTH_PROVIDER=oidc, so OIDC_ISSUER is required too. See .env.example.");
+  }
+  if (authMode() === "airtable") {
+    for (const name of ["AIRTABLE_OAUTH_CLIENT_ID", "AIRTABLE_OAUTH_CLIENT_SECRET", "APP_URL", "SESSION_SECRET"]) {
+      if (!process.env[name]?.trim()) throw new Error(`AUTH_PROVIDER=airtable, so ${name} is required too. See .env.example.`);
     }
   }
 }
@@ -80,10 +113,33 @@ export function assertAuthConfig(): void {
 /* -------------------------------------------------------------- matching */
 
 /** The verified email is the only thing we carry over from the provider; the Users row is the session. */
-export function matchUser(data: Data, email: string | undefined, emailVerified: boolean | undefined): Resolution {
+export function matchUser(data: Pick<Data, "userByEmail">, email: string | undefined, emailVerified: boolean | undefined): Resolution {
   if (emailVerified === false) return { kind: "denied", reason: "unverified-email" };
   const key = (email ?? "").trim().toLowerCase();
   const user = key ? data.userByEmail.get(key) : undefined;
+  return admit(user);
+}
+
+/**
+ * The Airtable path: match on Users.User ID — the `usr…` value Airtable itself gave us —
+ * rather than on an email address, which a person can change and an admin can mistype.
+ *
+ * The email is a fallback only, and only when the client has asked for one: a base whose
+ * User ID column is not filled in yet still has to let people sign in.
+ */
+export function matchUserById(
+  data: Pick<Data, "users" | "userByEmail">,
+  airtableUserId: string | undefined,
+  email?: string,
+): Resolution {
+  const key = (airtableUserId ?? "").trim();
+  const user = key ? data.users.find((u) => (u.userId ?? "").trim() === key) : undefined;
+  if (!user && process.env.AUTH_MATCH_EMAIL_FALLBACK === "1") return matchUser(data, email, undefined);
+  return admit(user);
+}
+
+/** The three questions the Users row answers, asked the same way for every provider. */
+function admit(user: User | undefined): Resolution {
   if (!user) return { kind: "denied", reason: "not-found" };
   if ((user.status ?? "").toLowerCase() !== "active") return { kind: "denied", reason: "inactive" };
   // isExternal() also counts an outside email domain, which is what "external" means for scope.
@@ -119,8 +175,9 @@ class OpenIdentity implements Identity {
   }
 }
 
-class OidcIdentity implements Identity {
-  readonly mode = "oidc" as const;
+/** Both real providers end in the same place: a signed cookie holding a Users record id. */
+class SessionIdentity implements Identity {
+  constructor(readonly mode: AuthProvider) {}
 
   async resolve(data: Data, jar: CookieJar): Promise<Resolution> {
     const session = readSession(jar);
@@ -144,5 +201,7 @@ export function getIdentity(): Identity {
   if (g.__foundryIdentity) return g.__foundryIdentity;
   assertAuthConfig();
   const mode = authMode();
-  return (g.__foundryIdentity = mode === "oidc" ? new OidcIdentity() : mode === "demo" ? new PersonaIdentity() : new OpenIdentity());
+  const identity: Identity =
+    mode === "airtable" || mode === "oidc" ? new SessionIdentity(mode) : mode === "demo" ? new PersonaIdentity() : new OpenIdentity();
+  return (g.__foundryIdentity = identity);
 }
