@@ -12,7 +12,8 @@
     "sync": "tsx scripts/sync.ts",
     "seed": "tsx scripts/seed.ts",
     "webhook": "tsx scripts/webhook.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
@@ -32,6 +33,7 @@
     "@types/react-dom": "19.2.2",
     "tailwindcss": "4.3.0",
     "tsx": "4.20.6",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "5.0.1"
   }
 }

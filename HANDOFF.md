@@ -174,7 +174,11 @@ seeder skips this table.
 | Ask Foundry says "no model" | `ANTHROPIC_API_KEY` is not in `.env`; that is fine, keyword mode still works |
 | Persona switcher missing | `FOUNDRY_DEMO=1` is not set, the app is not on 127.0.0.1, or `OIDC_ISSUER` is set (they cannot coexist) |
 | Counts look stale | Press Refresh from Airtable, or run `npm run sync` |
-| Server refuses to start: "FOUNDRY_DEMO=1 and OIDC_ISSUER are both set" | Exactly what it says. Unset one; demo mode lets anyone become any user |
+| Server refuses to start: "FOUNDRY_DEMO=1 and … are both set" | Exactly what it says. Unset one; demo mode lets anyone become any user |
+| Server refuses to start: "AUTH_PROVIDER=airtable and OIDC_ISSUER are both set" | One provider at a time. Unset `OIDC_ISSUER`, or set `AUTH_PROVIDER=oidc` |
+| Airtable sign-in ends on "cannot sign you in", reason `not-found` | The Users row for that person has no **User ID** (`usr…`), or there is no row. Fill the column and `npm run sync`, or set `AUTH_MATCH_EMAIL_FALLBACK=1` |
+| Airtable sign-in ends on reason `provider` | The redirect URI does not match the one registered on the integration, byte for byte, or `APP_URL` is wrong. The server log has the exchange error |
+| Airtable's consent screen says the integration is blocked | The client's Airtable admin restricts third-party OAuth integrations; they have to allow this one (section 8b) |
 | Deployed app says "Foundry needs a snapshot" | The Blob store is empty; run the first sync (section 9) |
 | Deployed `/api/jobs/*` answers 401 | `CRON_SECRET` is not set on the project, or the header does not match |
 | Sign-in bounces to "Foundry cannot sign you in" | The verified email has no active row in Airtable Users; the reason code is at the bottom of that page |
@@ -191,7 +195,7 @@ reads and writes `data/` exactly as in section 4.
 | `data/snapshot.json`, `schema.json`, `webhook.json` | Vercel Blob, one private blob each | `BLOB_READ_WRITE_TOKEN` |
 | in-memory conversations, rate limits, sync lock | Redis | `REDIS_URL` (or the Upstash REST pair) |
 | timers started by `instrumentation.ts` | the two crons in `vercel.json` | `VERCEL=1`, set by the platform |
-| persona switcher | OIDC sign-in | `OIDC_ISSUER` |
+| persona switcher | real sign-in | `AUTH_PROVIDER` (`OIDC_ISSUER` alone still means OIDC) |
 
 **Steps.**
 
@@ -213,9 +217,14 @@ reads and writes `data/` exactly as in section 4.
    ANTHROPIC_API_KEY=sk-ant-…     # optional
    ```
 
-   Do **not** set `FOUNDRY_DEMO`. The process refuses to start with both it and `OIDC_ISSUER`.
+   That is the OIDC deployment. To sign in with Airtable instead, drop the three `OIDC_*`
+   lines and set `AUTH_PROVIDER=airtable` with the two `AIRTABLE_OAUTH_*` values from
+   section 8b. The two providers cannot both be configured.
+
+   Do **not** set `FOUNDRY_DEMO`. The process refuses to start with it beside either provider.
 5. Register `https://your-host/auth/callback` as the redirect URI with the identity provider,
    and ask it for the `openid email profile` scopes. Foundry uses the verified email and nothing else.
+   (For Airtable, section 8b.)
 6. Deploy. The first page load will say **Foundry needs a snapshot**, because the Blob store is
    empty. Either use the button on that screen (it asks for `CRON_SECRET`) or run it by hand:
 
@@ -226,6 +235,7 @@ reads and writes `data/` exactly as in section 4.
    Without the header that route answers 401.
 7. Check `https://your-host/api/health`. It should report
    `{"ok":true, …, "store":"blob", "kv":"redis", "mode":"oidc"}` and a small `ageSeconds`.
+   `mode` is `airtable` on an Airtable deployment, and `provider` says which credentials arrived.
 8. Optional, for near-instant updates: create the webhook pointing at the deployment, and paste
    the two values it prints into the project's environment variables.
 
@@ -244,6 +254,59 @@ an admin pressing *Refresh from Airtable* can never run at the same time — the
 **Multiple clients.** `FOUNDRY_CLIENT=aands` loads `clients/aands/foundry.config.ts` instead of the
 root `foundry.config.ts`. Unset is the root file, which is what a laptop uses.
 
+## 8b. Sign in with Airtable
+
+The alternative to OIDC, and usually the faster one to arrange: people sign in with the Airtable
+account they already have. Airtable tells Foundry who they are; the synced **Users** table decides
+whether they get in and what they see. A person with no row, an inactive row, or (unless you allow
+it) an external one is refused, exactly as in OIDC mode.
+
+**Register the integration** — once per client, by someone who can administer their Airtable org.
+
+1. Go to <https://airtable.com/create/oauth> and create an OAuth integration.
+2. Name it something the client's staff will recognise on the consent screen ("Foundry").
+3. Add every redirect URI you will use, exactly:
+   `https://your-host/auth/callback`, any staging host, and `http://127.0.0.1:3000/auth/callback`
+   for local work. Airtable matches these byte for byte.
+4. Scope: **`user.email:read`**, and nothing else. It is what makes `whoami` return the email
+   beside the user ID; Foundry never reads a base with this token.
+5. Save. The **client ID** is on the integration's page. The **client secret** is shown once, when
+   you generate it — copy it then, or generate a new one later.
+
+**Configure the deployment.**
+
+```
+AUTH_PROVIDER=airtable
+AIRTABLE_OAUTH_CLIENT_ID=…
+AIRTABLE_OAUTH_CLIENT_SECRET=…
+APP_URL=https://your-host          # http://127.0.0.1:3000 locally
+SESSION_SECRET=<openssl rand -hex 32>
+```
+
+Leave `OIDC_ISSUER` unset — the process refuses to start with both. Leave `FOUNDRY_DEMO` unset
+too. Locally, that plus `npm run dev` is the whole setup: `/` redirects to a page with one
+**Sign in with Airtable** button, and `/api/health` reports `"mode":"airtable"`.
+
+**How the match works.** Airtable returns a user ID that looks like `usr00000000000000`. Foundry
+looks for the Users row whose **User ID** column holds it. That column comes from the admin-panel
+sync, so it is already right for real users; if a client's base has it empty, set
+`AUTH_MATCH_EMAIL_FALLBACK=1` and Foundry falls back to matching the email address. Denials are
+logged with the `usr…` ID and never with the email.
+
+**What Foundry keeps.** One call to `https://api.airtable.com/v0/meta/whoami`, then both the access
+token and the refresh token are dropped. Nothing is stored, nothing is refreshed, and Foundry never
+acts in Airtable on a signed-in person's behalf — the app's own writes still go through
+`AIRTABLE_PAT` as they always have. The session is the same signed `foundry_session` cookie as in
+OIDC mode: the Users record ID and an expiry, eight hours, re-checked against the table on every
+request.
+
+**Ask the client first.** An Airtable org admin can block third-party OAuth integrations outright
+or require each one to be allowlisted. If they do, sign-in fails on Airtable's own consent screen
+before it reaches Foundry, and only they can fix it. Confirm this before promising a date.
+
+**Signing out** clears the session cookie and returns to Home. Airtable has no end-session endpoint,
+so the person stays signed in to Airtable itself — the next sign-in will be one click.
+
 ## 9. Where things are
 
 | Path | Purpose |
@@ -255,7 +318,7 @@ root `foundry.config.ts`. Unset is the root file, which is what a laptop uses.
 | `src/lib/requests.ts` | Ranking, NDA rule, vote quota, Airtable writes |
 | `src/app/` | Home, Build, Library, Roadmap, Resources, Ask Foundry, Admin |
 | `src/lib/store.ts` | Files under `data/` vs Vercel Blob + Redis; everything persisted goes through here |
-| `src/lib/identity/` | OIDC sign-in, the signed session cookie, and the demo persona provider |
+| `src/lib/identity/` | Airtable and OIDC sign-in, the signed session cookie, and the demo persona provider |
 | `src/lib/worker.ts` | `fullSync()` and `drainWebhook()` under the shared lock, plus the local timers |
 | `src/proxy.ts` | The auth gate in front of every route |
 | `vercel.json` | The cron schedules that replace the local timers |
