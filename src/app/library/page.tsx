@@ -1,161 +1,129 @@
 import Link from "next/link";
-import { foundryConfig } from "@/lib/config";
-import { getCurrentUser } from "@/lib/persona";
-import { getData, stewardName, type Base } from "@/lib/snapshot";
-import { isSandboxWorkspace } from "@/lib/scope";
-import { Chip, SensitivityChip } from "@/components/Chip";
-import { OpenInAirtable } from "@/components/OpenInAirtable";
-import { RequestAccess } from "@/components/RequestAccess";
-import { accessRequestsAvailable, pendingRequestFor } from "@/lib/access";
+import { getData, stewardName, type CatalogItem } from "@/lib/snapshot";
+import { Chip } from "@/components/Chip";
+import { InfoTip } from "@/components/InfoTip";
 
-export default async function Library({ searchParams }: { searchParams: Promise<{ q?: string; locked?: string; msg?: string }> }) {
-  const { q = "", locked, msg } = await searchParams;
+type SP = { q?: string; tab?: string };
+
+const arr = (v: string | string[] | undefined): string[] => (Array.isArray(v) ? v : v ? [v] : []);
+const isUrl = (s?: string) => !!s && /^https?:\/\//i.test(s);
+const PLURAL: Record<string, string> = { "Managed App": "Apps", Component: "Components", Template: "Starter templates", "Integration Pattern": "Integration patterns" };
+const plural = (t: string) => PLURAL[t] ?? `${t}s`;
+const ORDER = ["Managed App", "Component", "Template", "Integration Pattern"];
+const statusKind = (s?: string) => (s === "Available" ? "real" : s === "Beta" ? "warn" : "neutral");
+
+export default async function Library({ searchParams }: { searchParams: Promise<SP> }) {
+  const { q = "", tab = "all" } = await searchParams;
   const data = await getData();
-  const me = await getCurrentUser();
-  const arAvailable = accessRequestsAvailable();
-  const backUrl = `/library?q=${encodeURIComponent(q)}${locked ? "&locked=1" : ""}`;
   const needle = q.trim().toLowerCase();
-  const matches = (b: Base) => !needle || (b.name ?? "").toLowerCase().includes(needle) || (b.workspaceName ?? "").toLowerCase().includes(needle);
-  const inScope = data.bases.filter((b) => (me.isAdmin || me.scope.bases.has(b.id)) && matches(b));
-  const lockedBases = data.bases.filter((b) => !me.isAdmin && !me.scope.bases.has(b.id) && matches(b));
+  const types = [...new Set(data.catalogItems.map((c) => c.type).filter(Boolean))] as string[];
+  types.sort((a, b) => (ORDER.indexOf(a) + 100) % 100 - (ORDER.indexOf(b) + 100) % 100 || a.localeCompare(b));
 
-  const byWorkspace = new Map<string, Base[]>();
-  for (const b of inScope) {
-    const k = b.workspaceName ?? "Unknown workspace";
-    byWorkspace.set(k, [...(byWorkspace.get(k) ?? []), b]);
-  }
-  const groups = [...byWorkspace.entries()].sort((a, b) => b[1].length - a[1].length);
+  const hit = (c: CatalogItem) => !needle || `${c.name} ${c.description ?? ""} ${c.owner ?? ""} ${arr(c.audience).join(" ")} ${c.type ?? ""}`.toLowerCase().includes(needle);
+  const items = data.catalogItems.filter(hit);
+  const datasets = data.datasets.filter((d) => !needle || `${d.name} ${d.description ?? ""} ${d.orgUnit ?? ""}`.toLowerCase().includes(needle));
+
+  const tabs = [
+    { key: "all", label: "All", n: items.length + datasets.length },
+    ...types.map((t) => ({ key: t, label: plural(t), n: items.filter((c) => c.type === t).length })),
+    { key: "datasets", label: "Verified datasets", n: datasets.length },
+  ];
+  const active = tabs.some((t) => t.key === tab) ? tab : "all";
+  const href = (t: string) => `/library?${new URLSearchParams({ ...(q ? { q } : {}), ...(t !== "all" ? { tab: t } : {}) }).toString()}`;
+
+  const shownItems = active === "all" ? items : active === "datasets" ? [] : items.filter((c) => c.type === active);
+  const featured = active === "all" && !needle ? shownItems.filter((c) => c.featured) : [];
+  const rest = shownItems.filter((c) => !featured.includes(c));
+  const showDatasets = active === "all" || active === "datasets";
+
+  const Card = ({ c }: { c: CatalogItem }) => (
+    <div className="card p-4 flex flex-col">
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip kind="neutral">{c.type}</Chip>
+        {c.status && <Chip kind={statusKind(c.status)}>{c.status}</Chip>}
+        {c.featured && <span className="text-xs text-amber-deep" title="Featured">★</span>}
+      </div>
+      <div className="font-semibold mt-2">{c.name}</div>
+      <p className="text-sm text-ink-2 mt-1 flex-1">{c.description}</p>
+      <div className="text-xs text-muted mt-3 flex flex-wrap gap-x-3">
+        {c.owner && <span>Owner · {c.owner}</span>}
+        {arr(c.audience).length > 0 && <span>For · {arr(c.audience).join(", ")}</span>}
+      </div>
+      <div className="mt-3">
+        {isUrl(c.link)
+          ? <a className="btn !text-xs" href={c.link} target="_blank" rel="noreferrer">Open ↗</a>
+          : <button className="btn !text-xs" disabled title="No link has been added to this item in Airtable yet">Link coming soon</button>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-6xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Airtable library</div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">{me.isAdmin ? "The whole estate" : "What you can open today"}</h1>
-          <p className="text-sm text-ink-2 mt-1">{inScope.length} bases in {groups.length} workspaces{me.isAdmin ? " · viewing as admin" : ` · ${lockedBases.length} more exist that you cannot open`}</p>
+          <div className="eyebrow">Airtable Library</div>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">Reusable pieces, ready to use</h1>
+          <p className="text-sm text-ink-2 mt-1">Apps, components, templates and verified datasets. Start here before you build from a blank base.</p>
         </div>
         <form className="flex gap-2 w-full md:w-96" method="get">
-          <input name="q" defaultValue={q} placeholder="Filter by base or workspace name" aria-label="Filter" />
-          {locked && <input type="hidden" name="locked" value="1" />}
-          <button className="btn" type="submit">Filter</button>
+          <input name="q" defaultValue={q} placeholder="Search the library" aria-label="Search the library" />
+          {active !== "all" && <input type="hidden" name="tab" value={active} />}
+          <button className="btn" type="submit">Search</button>
         </form>
       </div>
 
-      {msg && <div className="mt-4 card !bg-amber-soft px-4 py-2 text-sm">{msg}</div>}
+      <nav className="mt-5 flex flex-wrap gap-2 text-sm" aria-label="Library sections">
+        {tabs.map((t) => (
+          <Link key={t.key} href={href(t.key)} className={`px-3 py-1.5 rounded-full border ${active === t.key ? "bg-ink text-white border-ink" : "border-line-2 bg-card hover:bg-card-2"}`}>
+            {t.label} <span className="mono text-xs opacity-70">{t.n}</span>
+          </Link>
+        ))}
+      </nav>
 
-      <div className="mt-6 flex flex-col gap-6">
-        {groups.map(([ws, bases]) => {
-          const w = data.workspaces.find((x) => x.name === ws);
-          const sandbox = isSandboxWorkspace(ws);
-          return (
-            <section key={ws} className="card">
-              <header className="px-4 py-3 border-b border-line flex flex-wrap items-center gap-2">
-                <h2 className="font-semibold">{ws}</h2>
-                <span className="text-xs text-muted mono">{bases.length} bases</span>
-                {sandbox && <Chip kind="warn">Sandbox workspace</Chip>}
-                {w?.aiStatus && <Chip kind="neutral">AI {w.aiStatus.replace("Allowed ", "")}</Chip>}
-                {w?.system && <Chip kind="neutral">System</Chip>}
-              </header>
-              <div className="overflow-x-auto">
-                <table className="data">
-                  <thead><tr><th>Base</th><th>Sensitivity</th><th className="text-right">Rows</th><th className="text-right">Interfaces</th><th className="text-right">Collaborators</th><th></th></tr></thead>
-                  <tbody>
-                    {bases.sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0)).map((b) => {
-                      const ifaces = data.interfacesByBase.get(b.id) ?? [];
-                      const open = ifaces.filter((i) => me.isAdmin || me.scope.interfaces.has(i.id));
-                      return (
-                        <tr key={b.id}>
-                          <td>
-                            <div className="font-medium">{b.name}</div>
-                            <div className="text-xs text-muted flex flex-wrap gap-1 mt-0.5">
-                              {b.sandbox && <Chip kind="warn">Sandbox</Chip>}
-                              {(b.verifiedDatasets ?? []).length > 0 && <Chip kind="real">uses {b.verifiedDatasets!.length} verified dataset{b.verifiedDatasets!.length > 1 ? "s" : ""}</Chip>}
-                              {!me.isAdmin && <span className="mono">via {[...(me.scope.bases.get(b.id) ?? [])].map((v) => v.split(":")[0]).join(", ")}</span>}
-                            </div>
-                            {open.length > 0 && (
-                              <details className="mt-1 text-xs">
-                                <summary className="cursor-pointer text-ink-2">{open.length} interface{open.length > 1 ? "s" : ""}</summary>
-                                <ul className="mt-1 pl-3 flex flex-col gap-0.5">
-                                  {open.slice(0, 12).map((i) => (
-                                    <li key={i.id} className="flex items-center gap-2">
-                                      <span>{i.name}</span>
-                                      <SensitivityChip value={i.sensitivity ?? b.sensitivity} />
-                                      {b.baseId && i.interfaceId && <a className="text-sky-deep underline" href={foundryConfig.urls.interface(b.baseId, i.interfaceId)} target="_blank" rel="noreferrer">open ↗</a>}
-                                    </li>
-                                  ))}
-                                  {open.length > 12 && <li className="text-muted">+{open.length - 12} more</li>}
-                                </ul>
-                              </details>
-                            )}
-                          </td>
-                          <td><SensitivityChip value={b.sensitivity} /></td>
-                          <td className="text-right tnum">{(b.rowCount ?? 0).toLocaleString()}</td>
-                          <td className="text-right tnum">{ifaces.length}</td>
-                          <td className="text-right tnum">{b.collaboratorCount ?? (b.collaborators ?? []).length}</td>
-                          <td className="text-right"><OpenInAirtable href={b.baseId ? foundryConfig.urls.base(b.baseId) : undefined} small /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          );
-        })}
-        {!groups.length && <div className="card p-6 text-sm text-muted">Nothing in your scope matches “{q}”.</div>}
-      </div>
-
-      {!me.isAdmin && lockedBases.length > 0 && (
-        <section className="mt-8">
-          <div className="flex items-center gap-3">
-            <h2 className="font-semibold">Exists, but not available to you</h2>
-            <Chip kind="locked">{lockedBases.length} locked</Chip>
-            {!locked ? <Link className="text-sm underline" href={`/library?q=${encodeURIComponent(q)}&locked=1`}>Show names</Link> : <Link className="text-sm underline" href={`/library?q=${encodeURIComponent(q)}`}>Hide</Link>}
-          </div>
-          {locked && (
-            <div className="card mt-3 overflow-x-auto">
-              <table className="data">
-                <thead><tr><th>Base</th><th>Workspace</th><th>Sensitivity</th><th></th></tr></thead>
-                <tbody>
-                  {lockedBases.slice(0, 60).map((b) => (
-                    <tr key={b.id}>
-                      <td className="font-medium">{b.name}</td>
-                      <td className="text-ink-2">{b.workspaceName}</td>
-                      <td><SensitivityChip value={b.sensitivity} /></td>
-                      <td className="text-right"><RequestAccess baseId={b.id} back={backUrl} available={arAvailable} pending={!!pendingRequestFor(data, me.user.id, { baseId: b.id })} small /></td>
-                    </tr>
-                  ))}
-                  {lockedBases.length > 60 && <tr><td colSpan={4} className="text-muted text-xs">+{lockedBases.length - 60} more · narrow with the filter</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {featured.length > 0 && (
+        <section className="mt-6">
+          <h2 className="font-semibold">Featured</h2>
+          <div className="grid md:grid-cols-3 gap-3 mt-2">{featured.map((c) => <Card key={c.id} c={c} />)}</div>
         </section>
       )}
 
-      <section id="datasets" className="mt-8 card">
-        <header className="px-4 py-3 border-b border-line flex items-center gap-2">
-          <h2 className="font-semibold">Verified datasets</h2>
-          <span className="text-xs text-muted mono">{data.datasets.length} · schema and steward visible to everyone</span>
-        </header>
-        <div className="overflow-x-auto">
-          <table className="data">
-            <thead><tr><th>Data set</th><th>Steward</th><th>Org unit</th><th>Audience</th><th>Status</th><th className="text-right">Used by</th></tr></thead>
-            <tbody>
-              {data.datasets.map((d) => (
-                <tr key={d.id}>
-                  <td><div className="font-medium">{d.name}</div><div className="text-xs text-muted max-w-md">{d.description}</div></td>
-                  <td>{stewardName(d) ? <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-real" />{stewardName(d)}</span> : <span className="text-muted">unowned</span>}</td>
-                  <td className="text-ink-2">{d.orgUnit}</td>
-                  <td className="text-xs text-ink-2">{(d.audience ?? []).join(", ")}</td>
-                  <td className="flex gap-1">{d.verified && <Chip kind="real">Verified</Chip>}<Chip kind="neutral">{d.status ?? "—"}</Chip></td>
-                  <td className="text-right tnum">{(d.basesUsing ?? []).length}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {rest.length > 0 && (
+        <section className="mt-6">
+          {(featured.length > 0 || active === "all") && <h2 className="font-semibold">{featured.length ? "Everything else" : "Apps, components and templates"}</h2>}
+          <div className="grid md:grid-cols-3 gap-3 mt-2">{rest.map((c) => <Card key={c.id} c={c} />)}</div>
+        </section>
+      )}
+
+      {showDatasets && datasets.length > 0 && (
+        <section id="datasets" className="mt-8">
+          <h2 className="font-semibold flex items-center gap-2">Verified datasets
+            <InfoTip title="WHAT IS A VERIFIED DATASET?">
+              A single source table that a named steward maintains. Link it instead of copying it, and your app stays current when the source changes.
+            </InfoTip>
+          </h2>
+          <div className="grid md:grid-cols-3 gap-3 mt-2">
+            {datasets.map((d) => (
+              <div key={d.id} className="card p-4 flex flex-col">
+                <div className="flex items-center gap-2">
+                  {d.verified && <Chip kind="real">Verified</Chip>}
+                  {d.status && <Chip kind="neutral">{d.status}</Chip>}
+                </div>
+                <div className="font-semibold mt-2">{d.name}</div>
+                <p className="text-sm text-ink-2 mt-1 flex-1 line-clamp-3">{d.description}</p>
+                <div className="text-xs text-muted mt-3 flex flex-wrap items-center gap-x-3">
+                  <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${stewardName(d) ? "bg-real" : "bg-line-2"}`} />{stewardName(d) ?? "unowned"}</span>
+                  {d.orgUnit && <span>{d.orgUnit}</span>}
+                  <span>{(d.basesUsing ?? []).length} bases use it</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!shownItems.length && !(showDatasets && datasets.length) && (
+        <div className="card p-6 mt-6 text-sm text-muted">{data.catalogItems.length || data.datasets.length ? `Nothing in the library matches “${q}”.` : "The Catalog Items table has no rows yet."}</div>
+      )}
     </div>
   );
 }

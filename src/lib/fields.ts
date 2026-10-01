@@ -4,10 +4,10 @@
  * and "Workspaces via Owner User IDs" both resolve.
  */
 export type TableKey =
-  | "users" | "groups" | "workspaces" | "bases" | "interfaces" | "verifiedDatasets" | "requests" | "votes" | "accessRequests";
+  | "users" | "groups" | "workspaces" | "bases" | "interfaces" | "verifiedDatasets" | "requests" | "votes" | "accessRequests" | "catalogItems" | "trainingResources";
 
 export const TABLE_KEYS: TableKey[] = [
-  "users", "groups", "workspaces", "bases", "interfaces", "verifiedDatasets", "requests", "votes", "accessRequests",
+  "users", "groups", "workspaces", "bases", "interfaces", "verifiedDatasets", "requests", "votes", "accessRequests", "catalogItems", "trainingResources",
 ];
 
 /** Tables that are synced from the admin panel: read-only for Foundry. */
@@ -141,6 +141,28 @@ export const FIELD_ALIASES: Record<TableKey, Record<string, string[]>> = {
     recordSource: ["Record Source"],
     votedAt: ["Voted at", "Cast at", "Created"],
   },
+  catalogItems: {
+    name: ["Name", "Title"],
+    type: ["Type"],
+    description: ["Description"],
+    audience: ["Audience"],
+    status: ["Status"],
+    owner: ["Owner"],
+    link: ["Link", "URL"],
+    featured: ["Featured"],
+    useCase: ["Use Case"],
+    relatedBase: ["Related Base"],
+  },
+  trainingResources: {
+    title: ["Title", "Name"],
+    source: ["Source"],
+    format: ["Format"],
+    topic: ["Topic"],
+    level: ["Level"],
+    description: ["Description"],
+    url: ["URL", "Link"],
+    durationMin: ["Duration (min)", "Duration"],
+  },
   accessRequests: {
     request: ["Request"],
     requester: ["Requester"],
@@ -172,6 +194,8 @@ export const REQUIRED_FIELDS: Partial<Record<TableKey, string[]>> = {
   votes: ["request", "voter", "active"],
   // Grant method and Record Source stay out of this list on purpose: the table may omit them.
   accessRequests: ["requester", "requestedPermission", "status"],
+  catalogItems: ["name", "type"],
+  trainingResources: ["title"],
 };
 
 export function normalizeName(name: string): string {

@@ -7,6 +7,8 @@ export type Match = {
   title: string;
   subtitle: string;
   score: number;
+  /** How the score was reached, so the UI can show its working. */
+  why: { total: number; whole: string[]; partial: string[]; strength: "strong" | "possible" };
   inScope: boolean;
   href?: string;
 };
@@ -17,14 +19,21 @@ export function tokens(q: string): string[] {
   return q.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 2 && !STOP.has(t));
 }
 
-function score(text: string, toks: string[]): number {
+type Hit = { score: number; whole: string[]; partial: string[]; total: number; strength: "strong" | "possible" };
+
+/** Whole keyword in the text = 2 points; a 4-letter stem of a longer keyword = 1 point. */
+function score(text: string, toks: string[]): Hit {
   const hay = text.toLowerCase();
+  const whole: string[] = [];
+  const partial: string[] = [];
   let s = 0;
   for (const t of toks) {
-    if (hay.includes(t)) s += 2;
-    else if (t.length > 4 && hay.includes(t.slice(0, 4))) s += 1;
+    if (hay.includes(t)) { s += 2; whole.push(t); }
+    else if (t.length > 4 && hay.includes(t.slice(0, 4))) { s += 1; partial.push(t); }
   }
-  return s;
+  // Strong: at least two whole keywords found, or most of the request's keywords covered.
+  const strong = whole.length >= 2 || s / (2 * Math.max(1, toks.length)) >= 0.6;
+  return { score: s, whole, partial, total: toks.length, strength: strong ? "strong" : "possible" };
 }
 
 export function searchCatalog(data: Data, scope: Scope, query: string, limit = 8): Match[] {
@@ -32,23 +41,23 @@ export function searchCatalog(data: Data, scope: Scope, query: string, limit = 8
   if (!toks.length) return [];
   const out: Match[] = [];
   for (const b of data.bases) {
-    const s = score(`${b.name ?? ""} ${b.workspaceName ?? ""}`, toks);
-    if (s > 0) out.push({ kind: "base", id: b.id, title: b.name ?? b.baseId ?? b.id, subtitle: `Base · ${b.workspaceName ?? ""}`, score: s, inScope: scope.bases.has(b.id) });
+    const h = score(`${b.name ?? ""} ${b.workspaceName ?? ""}`, toks);
+    if (h.score > 0) out.push({ kind: "base", id: b.id, title: b.name ?? b.baseId ?? b.id, subtitle: `Base · ${b.workspaceName ?? ""}`, score: h.score, why: h, inScope: scope.bases.has(b.id) });
   }
   for (const i of data.interfaces) {
-    const s = score(i.name ?? "", toks);
-    if (s > 0) {
+    const h = score(i.name ?? "", toks);
+    if (h.score > 0) {
       const base = data.baseOfInterface.get(i.id);
-      out.push({ kind: "interface", id: i.id, title: i.name ?? i.id, subtitle: `Interface · ${base?.name ?? "unknown base"}`, score: s, inScope: scope.interfaces.has(i.id) });
+      out.push({ kind: "interface", id: i.id, title: i.name ?? i.id, subtitle: `Interface · ${base?.name ?? "unknown base"}`, score: h.score, why: h, inScope: scope.interfaces.has(i.id) });
     }
   }
   for (const d of data.datasets) {
-    const s = score(`${d.name ?? ""} ${d.description ?? ""} ${(d.audience ?? []).join(" ")}`, toks);
-    if (s > 0) out.push({ kind: "dataset", id: d.id, title: d.name ?? d.id, subtitle: `Verified dataset · ${d.orgUnit ?? ""}`, score: s, inScope: true });
+    const h = score(`${d.name ?? ""} ${d.description ?? ""} ${(d.audience ?? []).join(" ")}`, toks);
+    if (h.score > 0) out.push({ kind: "dataset", id: d.id, title: d.name ?? d.id, subtitle: `Verified dataset · ${d.orgUnit ?? ""}`, score: h.score, why: h, inScope: true });
   }
   for (const r of data.requests) {
-    const s = score(`${r.title ?? ""} ${r.description ?? ""} ${r.useCase ?? ""}`, toks);
-    if (s > 0) out.push({ kind: "request", id: r.id, title: r.title ?? r.id, subtitle: `Proposal · ${r.status ?? ""}`, score: s, inScope: true });
+    const h = score(`${r.title ?? ""} ${r.description ?? ""} ${r.useCase ?? ""}`, toks);
+    if (h.score > 0) out.push({ kind: "request", id: r.id, title: r.title ?? r.id, subtitle: `Proposal · ${r.status ?? ""}`, score: h.score, why: h, inScope: true });
   }
   return out.sort((a, b) => b.score - a.score || Number(b.inScope) - Number(a.inScope)).slice(0, limit);
 }

@@ -18,6 +18,8 @@ export const foundryConfig = {
     requests: "Requests",
     votes: "Votes",
     accessRequests: "Access Requests",
+    catalogItems: "Catalog Items",
+    trainingResources: "Training Resources",
   },
   roles: {
     /** Members of these groups are Builders even without owning a workspace. */

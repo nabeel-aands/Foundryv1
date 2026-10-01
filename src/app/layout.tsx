@@ -70,7 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nav = [
     { href: "/", label: "Home" },
     { href: "/build", label: "Build something" },
-    { href: "/library", label: "Airtable library" },
+    { href: "/library", label: "Airtable Library" },
     { href: "/roadmap", label: "Roadmap" },
     { href: "/resources", label: "Resources" },
     { href: "/ask", label: "Ask Foundry" },
@@ -90,7 +90,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {me.isAdmin && (
                 <div className="mt-4">
                   <div className="eyebrow !text-side-text/50 px-3 mb-1">Admin</div>
-                  <NavLinks items={[{ href: "/admin", label: "Governance console" }, { href: "/admin/access", label: "Access requests" }]} />
+                  <NavLinks items={[{ href: "/admin", label: "Governance console", exact: true }, { href: "/admin/access", label: "Access requests" }, { href: "/admin/inventory", label: "Airtable Inventory" }]} />
                 </div>
               )}
             </nav>

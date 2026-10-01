@@ -9,11 +9,50 @@ import { Tile } from "@/components/Tile";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
 import { refreshAll } from "../actions";
+import { ROW_CAP, filterPanel, isPanelKey, panel, searchEstate, type PanelKey, type Row } from "@/lib/admin";
 
-export default async function Admin() {
+function Table({ columns, rows }: { columns: string[]; rows: Row[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="data">
+        <thead><tr>{columns.map((c) => <th key={c}>{c}</th>)}<th></th></tr></thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {r.cells.map((c, j) => <td key={j} className={j === 0 ? "font-medium" : "text-ink-2"}>{c}</td>)}
+              <td className="text-right">{r.href && <OpenInAirtable href={r.href} small />}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default async function Admin({ searchParams }: { searchParams: Promise<{ open?: string; q?: string }> }) {
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim();
   const me = await getCurrentUser();
   if (!me.isAdmin) redirect("/?msg=admin");
   const data = await getData();
+  const open: PanelKey | undefined = sp.open && isPanelKey(sp.open) ? sp.open : undefined;
+  const to = (k?: PanelKey) => { const p = new URLSearchParams(); if (k && k !== open) p.set("open", k); if (q) p.set("q", q); const t = p.toString(); return (t ? `/admin?${t}` : "/admin") + (k && k !== open ? "#panel" : ""); };
+  const openPanel = open ? filterPanel(panel(open, data), q) : undefined;
+  const results = !open && q ? searchEstate(data, q) : [];
+  const Panel = ({ keys }: { keys: PanelKey[] }) => {
+    if (!open || !openPanel || !keys.includes(open)) return null;
+    return (
+      <section className="card mt-3" id="panel">
+        <header className="px-4 py-3 border-b border-line flex flex-wrap items-center gap-2">
+          <h2 className="font-semibold">{openPanel.title}</h2>
+          <span className="text-xs text-muted mono">{openPanel.total}{q ? ` matching “${q}”` : ""}{openPanel.total > ROW_CAP ? ` · showing first ${ROW_CAP}, search to narrow` : ""}</span>
+          <Link href={to(open)} className="ml-auto text-sm font-semibold" aria-label="Close details">✕ Close</Link>
+        </header>
+        {openPanel.note && <p className="px-4 pt-3 text-xs text-muted">{openPanel.note}</p>}
+        {openPanel.shown.length ? <Table columns={openPanel.columns} rows={openPanel.shown} /> : <p className="px-4 py-6 text-sm text-muted">{q ? `Nothing here matches “${q}”.` : "Nothing to show."}</p>}
+      </section>
+    );
+  };
   const users = data.users;
   const active = users.filter((u) => (u.status ?? "").toLowerCase() === "active");
   const deactivated = users.length - active.length;
@@ -48,39 +87,66 @@ export default async function Admin() {
         <form action={refreshAll}><button className="btn" type="submit" title="Re-pull every table from Airtable (about 8 seconds)">Refresh from Airtable</button></form>
       </div>
 
+      <form action="/admin" method="get" className="mt-4 flex gap-2 max-w-2xl">
+        {open && <input type="hidden" name="open" value={open} />}
+        <input name="q" defaultValue={q} placeholder={open ? `Filter “${openPanel?.title}”` : "Search people, groups, workspaces, bases, interfaces, datasets"} aria-label="Search" />
+        <button className="btn" type="submit">Search</button>
+        {q && <Link className="btn btn-ghost" href={open ? `/admin?open=${open}` : "/admin"}>Clear</Link>}
+      </form>
+
+      {q && !open && (
+        <div className="mt-4 flex flex-col gap-4">
+          {results.length === 0 && <div className="card p-4 text-sm text-muted">Nothing in the estate matches “{q}”.</div>}
+          {results.map((r) => (
+            <section key={r.key} className="card">
+              <header className="px-4 py-3 border-b border-line flex items-center gap-2">
+                <h2 className="font-semibold">{r.title}</h2>
+                <span className="text-xs text-muted mono">{r.total} match{r.total === 1 ? "" : "es"}</span>
+                {r.total > r.shown.length && <Link className="ml-auto text-sm font-semibold" href={`/admin?open=${r.key}&q=${encodeURIComponent(q)}`}>See all {r.total} ↗</Link>}
+              </header>
+              <Table columns={r.columns} rows={r.shown} />
+            </section>
+          ))}
+        </div>
+      )}
+
       <h2 className="font-semibold mt-8">Register</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-        <Tile label="Active users" value={active.length} sub={`${deactivated} deactivated · ${users.length} total`} />
-        <Tile label="Org admins" value={admins.length} sub={admins.map(displayName).slice(0, 3).join(", ")} />
-        <Tile label="External accounts" value={external.length} sub={`${portal.length} reach data through portals`} />
-        <Tile label="Groups" value={data.groups.length} sub={data.groups.map((g) => `${g.name} ${g.members?.length ?? 0}`).join(" · ")} />
-        <Tile label="Active without 2FA" value={has2fa ? no2fa.length : "—"} sub={has2fa ? "org members only" : "2FA field not in this sync"} kind={has2fa ? "real" : "modelled"} />
-        <Tile label="Inactive 90+ days" value={hasLastActive ? inactive90.length : "—"} sub={hasLastActive ? "active accounts with no recent activity" : "Last Active not in this sync"} kind={hasLastActive ? "real" : "modelled"} />
+        <Tile label="Active users" href={to("users")} open={open === "users"} value={active.length} sub={`${deactivated} deactivated · ${users.length} total`} />
+        <Tile label="Org admins" href={to("admins")} open={open === "admins"} value={admins.length} sub={admins.map(displayName).slice(0, 3).join(", ")} />
+        <Tile label="External accounts" href={to("external")} open={open === "external"} value={external.length} sub={`${portal.length} reach data through portals`} />
+        <Tile label="Groups" href={to("groups")} open={open === "groups"} value={data.groups.length} sub={data.groups.map((g) => `${g.name} ${g.members?.length ?? 0}`).join(" · ")} />
+        <Tile label="Active without 2FA" href={has2fa ? to("no2fa") : undefined} open={open === "no2fa"} value={has2fa ? no2fa.length : "—"} sub={has2fa ? "org members only" : "2FA field not in this sync"} kind={has2fa ? "real" : "modelled"} />
+        <Tile label="Inactive 90+ days" href={hasLastActive ? to("inactive") : undefined} open={open === "inactive"} value={hasLastActive ? inactive90.length : "—"} sub={hasLastActive ? "active accounts with no recent activity" : "Last Active not in this sync"} kind={hasLastActive ? "real" : "modelled"} />
         <Tile label="Seat types" value={seatTypes.has("unset") && seatTypes.size === 1 ? "—" : [...seatTypes.entries()].filter(([k]) => k !== "unset").reduce((s, [, v]) => s + v, 0)} sub={seatTypes.has("unset") && seatTypes.size === 1 ? "Seat Type is empty for every user in this sync" : [...seatTypes.entries()].map(([k, v]) => `${k} ${v}`).join(" · ")} kind={seatTypes.has("unset") && seatTypes.size === 1 ? "modelled" : "real"} />
         <Tile label="Seat utilisation" value="—" sub="purchased seat total is not in any API; set limits in config" kind="modelled" derived="config.limits.seatsLicensed (unset)" />
       </div>
 
+      <Panel keys={["users", "admins", "external", "no2fa", "inactive", "groups"]} />
+
       <h2 className="font-semibold mt-8">Estate</h2>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-        <Tile label="Workspaces" value={data.workspaces.length} sub={`AI on in ${aiOn} · off in ${data.workspaces.length - aiOn}`} />
-        <Tile label="Bases" value={data.bases.length} sub={`${sandboxBases} sandbox (native flag or workspace name)`} />
-        <Tile label="Interfaces" value={data.interfaces.length} sub={`${data.interfaces.filter((i) => (i.portalCollaborators ?? []).length > 0).length} with portal collaborators`} />
+        <Tile label="Workspaces" href={to("workspaces")} open={open === "workspaces"} value={data.workspaces.length} sub={`AI on in ${aiOn} · off in ${data.workspaces.length - aiOn}`} />
+        <Tile label="Bases" href={to("bases")} open={open === "bases"} value={data.bases.length} sub={`${sandboxBases} sandbox (native flag or workspace name)`} />
+        <Tile label="Interfaces" href={to("interfaces")} open={open === "interfaces"} value={data.interfaces.length} sub={`${data.interfaces.filter((i) => (i.portalCollaborators ?? []).length > 0).length} with portal collaborators`} />
         <Tile label="Records in estate" value={rows.toLocaleString()} sub="sum of Row Count across bases" />
-        <Tile label="Classification coverage" value={`${classified}/${data.bases.length}`} sub={classified ? "bases with a Sensitivity value" : "no base has a Sensitivity value yet; set it in Airtable"} />
-        <Tile label="Verified datasets" value={`${data.datasets.filter((d) => d.verified).length}/${data.datasets.length}`} sub={`${data.datasets.filter((d) => !stewardName(d)).length} without a steward`} />
+        <Tile label="Classification coverage" href={to("unclassified")} open={open === "unclassified"} value={`${classified}/${data.bases.length}`} sub={classified ? "bases with a Sensitivity value" : "no base has a Sensitivity value yet; set it in Airtable"} />
+        <Tile label="Verified datasets" href={to("datasets")} open={open === "datasets"} value={`${data.datasets.filter((d) => d.verified).length}/${data.datasets.length}`} sub={`${data.datasets.filter((d) => !stewardName(d)).length} without a steward`} />
         <Tile label="Automation runs" value="—" sub="no API exposes automation run counts" kind="modelled" derived="nothing yet" />
         <Tile label="AI credits" value="—" sub="derivable from audit-log events in v2 (Enterprise API)" kind="modelled" derived="audit log aiCreditConsumed (v2)" />
       </div>
+
+      <Panel keys={["workspaces", "bases", "interfaces", "datasets", "unclassified", "ext-bases", "no-steward"]} />
 
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <section className="card">
           <header className="px-4 py-3 border-b border-line flex items-center gap-2"><h2 className="font-semibold">Needs your attention</h2><Chip kind="warn">{basesWithExternal.length + (data.bases.length - classified > 0 ? 1 : 0)} items</Chip></header>
           <ul className="divide-y divide-line text-sm">
-            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">{basesWithExternal.length} bases have external collaborators</div><div className="text-xs text-muted">{basesWithExternal.slice(0, 3).map((x) => `${x.b.name} (${x.n})`).join(" · ")}</div></div></li>
-            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-warn flex-none" /><div className="flex-1"><div className="font-medium">{data.bases.length - classified} bases have no sensitivity flag</div><div className="text-xs text-muted">Set Sensitivity on the Airtable Bases table; the coverage tile updates on refresh.</div></div><OpenInAirtable href={`https://airtable.com/${process.env.AIRTABLE_BASE_ID ?? ""}`} label="Classify in Airtable" small /></li>
+            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">{basesWithExternal.length} bases have external collaborators</div><div className="text-xs text-muted">{basesWithExternal.slice(0, 3).map((x) => `${x.b.name} (${x.n})`).join(" · ")}</div></div><Link className="btn btn-ghost !px-2 !py-1 !text-xs" href={to("ext-bases")}>{open === "ext-bases" ? "Close" : "View all"}</Link></li>
+            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-warn flex-none" /><div className="flex-1"><div className="font-medium">{data.bases.length - classified} bases have no sensitivity flag</div><div className="text-xs text-muted">Set Sensitivity on the Airtable Bases table; the coverage tile updates on refresh.</div></div><Link className="btn btn-ghost !px-2 !py-1 !text-xs" href={to("unclassified")}>{open === "unclassified" ? "Close" : "View"}</Link><OpenInAirtable href={`https://airtable.com/${process.env.AIRTABLE_BASE_ID ?? ""}`} label="Classify in Airtable" small /></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-amber flex-none" /><div className="flex-1"><div className="font-medium">{data.requests.filter((r) => /submitted/i.test(r.status ?? "")).length} requests awaiting first response</div><div className="text-xs text-muted">Submitted and not yet In Review.</div></div></li>
             <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-model flex-none" /><div className="flex-1"><div className="font-medium">Pending access requests: {pendingFor(data, me).length}</div><div className="text-xs text-muted">People waiting on a base or interface they cannot open.</div></div><Link className="btn btn-ghost !px-2 !py-1 !text-xs" href="/admin/access">Review</Link></li>
-            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-line-2 flex-none" /><div className="flex-1"><div className="font-medium">{data.datasets.filter((d) => !stewardName(d)).length} verified datasets have no steward</div><div className="text-xs text-muted">Assign an Owner in the Verified Datasets table.</div></div></li>
+            <li className="px-4 py-3 flex items-start gap-3"><span className="mt-1.5 w-2 h-2 rounded-full bg-line-2 flex-none" /><div className="flex-1"><div className="font-medium">{data.datasets.filter((d) => !stewardName(d)).length} verified datasets have no steward</div><div className="text-xs text-muted">Assign an Owner in the Verified Datasets table.</div></div><Link className="btn btn-ghost !px-2 !py-1 !text-xs" href={to("no-steward")}>{open === "no-steward" ? "Close" : "View"}</Link></li>
           </ul>
         </section>
         <section className="card">
@@ -91,7 +157,7 @@ export default async function Admin() {
           </table>
         </section>
         <section className="card lg:col-span-2">
-          <header className="px-4 py-3 border-b border-line"><h2 className="font-semibold">Largest bases</h2></header>
+          <header className="px-4 py-3 border-b border-line flex items-center gap-2"><h2 className="font-semibold">Largest bases</h2><Link className="ml-auto text-sm font-semibold" href={to("bases")}>See all {data.bases.length} ↗</Link></header>
           <div className="overflow-x-auto"><table className="data">
             <thead><tr><th>Base</th><th>Workspace</th><th>Sensitivity</th><th className="text-right">Rows</th><th className="text-right">Collaborators</th><th className="text-right">Interfaces</th><th></th></tr></thead>
             <tbody>{largest.map((b) => <tr key={b.id}><td className="font-medium">{b.name}</td><td className="text-ink-2">{b.workspaceName}</td><td><SensitivityChip value={b.sensitivity} /></td><td className="text-right tnum">{(b.rowCount ?? 0).toLocaleString()}</td><td className="text-right tnum">{b.collaboratorCount ?? (b.collaborators ?? []).length}</td><td className="text-right tnum">{(data.interfacesByBase.get(b.id) ?? []).length}</td><td className="text-right"><OpenInAirtable href={b.baseId ? foundryConfig.urls.base(b.baseId) : undefined} small /></td></tr>)}</tbody>

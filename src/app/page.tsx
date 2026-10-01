@@ -4,12 +4,11 @@ import { getCurrentUser } from "@/lib/persona";
 import { getData, stewardName } from "@/lib/snapshot";
 import { rankRequests } from "@/lib/requests";
 import { Chip } from "@/components/Chip";
+import { InfoTip } from "@/components/InfoTip";
 
 export default async function Home() {
   const data = await getData();
   const me = await getCurrentUser();
-  const inScopeBases = me.isAdmin ? data.bases.length : me.scope.bases.size;
-  const inScopeInterfaces = me.isAdmin ? data.interfaces.length : me.scope.interfaces.size;
   const top = rankRequests(data, me).slice(0, 5);
   const verified = data.datasets.filter((d) => d.verified).length;
   const hour = new Date().getHours();
@@ -38,11 +37,11 @@ export default async function Home() {
         </Link>
         <Link href="/library" className="card p-5 !bg-sky hover:-translate-y-0.5 transition-transform">
           <div className="eyebrow">Path 02</div>
-          <div className="text-lg font-semibold mt-1">Browse the library</div>
-          <p className="text-sm text-ink-2 mt-1"><b className="tnum">{inScopeBases}</b> bases and <b className="tnum">{inScopeInterfaces}</b> interfaces you can open today, plus <b className="tnum">{data.datasets.length}</b> verified datasets.</p>
+          <div className="text-lg font-semibold mt-1">Browse the Airtable Library</div>
+          <p className="text-sm text-ink-2 mt-1"><b className="tnum">{data.catalogItems.length}</b> apps, components and templates, plus <b className="tnum">{data.datasets.length}</b> verified datasets, ready to reuse.</p>
           <div className="mt-4 text-sm font-semibold">Browse →</div>
         </Link>
-        <Link href="/build?step=3&path=Team+build" className="card p-5 !bg-lilac hover:-translate-y-0.5 transition-transform">
+        <Link href="/build?step=4&path=Team+Build" className="card p-5 !bg-lilac hover:-translate-y-0.5 transition-transform">
           <div className="eyebrow">Path 03</div>
           <div className="text-lg font-semibold mt-1">Ask {foundryConfig.requests.teamLabel} to build it</div>
           <p className="text-sm text-ink-2 mt-1">Submit an intake with a timeline and budget. It joins the stack rank others can vote up.</p>
@@ -53,7 +52,14 @@ export default async function Home() {
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <section className="card p-5">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-semibold">Verified datasets</h2>
+            <h2 className="font-semibold flex items-center gap-2">Verified datasets
+              <InfoTip title="WHAT IS A VERIFIED DATASET?">
+                A single source table that a named steward maintains. It is refreshed on a schedule and safe to link into your own base. Link it instead of copying it, and your app stays current when the source changes.
+                <span className="block border-t border-white/15 my-2.5" />
+                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-real flex-none" /><b>Green dot = steward assigned and current</b></span>
+                <span className="flex items-center gap-2 mt-1"><span className="w-2 h-2 rounded-full bg-line-2 flex-none" />Grey dot = unowned, use at your own risk</span>
+              </InfoTip>
+            </h2>
             <span className="text-xs text-muted mono">{verified} verified · {data.datasets.length} total</span>
           </div>
           <ul className="mt-3 divide-y divide-line">
@@ -68,11 +74,15 @@ export default async function Home() {
               </li>
             ))}
           </ul>
-          <Link href="/library#datasets" className="text-sm font-semibold mt-3 inline-block">See all {data.datasets.length} →</Link>
+          <Link href="/library?tab=datasets" className="text-sm font-semibold mt-3 inline-block">See all {data.datasets.length} →</Link>
         </section>
         <section className="card p-5">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-semibold">On the roadmap</h2>
+            <h2 className="font-semibold flex items-center gap-2">On the roadmap
+              <InfoTip title="WHAT IS THE ROADMAP?">
+                Things that are being built for teams like yours, plus everything proposed and waiting. Upvote what you need and it moves up the stack rank. If what you need is not here, add a proposal.
+              </InfoTip>
+            </h2>
             <span className="text-xs text-muted mono">ranked by votes</span>
           </div>
           <ul className="mt-3 divide-y divide-line">

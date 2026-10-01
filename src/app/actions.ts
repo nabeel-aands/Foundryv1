@@ -61,7 +61,7 @@ export async function submitRequest(formData: FormData): Promise<void> {
 }
 
 export async function requestAccess(formData: FormData): Promise<void> {
-  const back = String(formData.get("back") ?? "/library");
+  const back = String(formData.get("back") ?? "/");
   const me = await getCurrentUser();
   const r = await requestAccessDomain(await getData(), me, {
     baseId: String(formData.get("baseId") ?? "") || undefined,

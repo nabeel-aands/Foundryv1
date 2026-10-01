@@ -27,7 +27,7 @@ export default async function Roadmap({ searchParams }: { searchParams: Promise<
         <div>
           <div className="eyebrow">Roadmap</div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">What's coming, and what you can push up</h1>
-          <p className="text-sm text-ink-2 mt-1">Everything proposed or in flight, ranked by demand. Votes write straight to the Votes table in Airtable.</p>
+          <p className="text-sm text-ink-2 mt-1 max-w-2xl">Review the list of submitted ideas/requests across your organization. Upvote them if they matter to you. <Link href="/build" className="underline">Submit a new intake request</Link> if you don't see your use case in Airtable yet.</p>
         </div>
         <Link href="/build" className="btn btn-primary">Submit an intake</Link>
       </div>

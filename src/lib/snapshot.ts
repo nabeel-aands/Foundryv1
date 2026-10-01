@@ -36,6 +36,14 @@ export type VerifiedDataset = CanonRecord & {
   status?: string; verified?: boolean; notes?: string; publishedBy?: string; sourceBase?: string;
   sourceTable?: string; sourceView?: string; catalogUpdated?: string; basesUsing?: string[]; lastReviewed?: string;
 };
+export type CatalogItem = CanonRecord & {
+  name?: string; type?: string; description?: string; audience?: string | string[]; status?: string; owner?: string;
+  link?: string; featured?: boolean; useCase?: string | string[]; relatedBase?: string[];
+};
+export type TrainingResource = CanonRecord & {
+  title?: string; source?: string; format?: string; topic?: string; level?: string; description?: string;
+  url?: string; durationMin?: number;
+};
 export type RequestRow = CanonRecord & {
   title?: string; description?: string; useCase?: string; path?: string; status?: string; requester?: string[];
   orgUnit?: string; teamSize?: number; timeline?: string; budget?: number; nda: boolean; visibleToGroups?: string[];
@@ -57,6 +65,7 @@ export type Data = {
   warnings: string[];
   users: User[]; groups: Group[]; workspaces: Workspace[]; bases: Base[]; interfaces: Interface[];
   datasets: VerifiedDataset[]; requests: RequestRow[]; votes: VoteRow[]; accessRequests: AccessRequestRow[];
+  catalogItems: CatalogItem[]; trainingResources: TrainingResource[];
   /** indexes by Airtable record id */
   userById: Map<string, User>; userByEmail: Map<string, User>;
   groupById: Map<string, Group>; workspaceById: Map<string, Workspace>;
@@ -92,6 +101,8 @@ function build(snap: Snapshot): Data {
   const requests = (snap.tables.requests ?? []) as RequestRow[];
   const votes = (snap.tables.votes ?? []) as VoteRow[];
   const accessRequests = (snap.tables.accessRequests ?? []) as AccessRequestRow[];
+  const catalogItems = ((snap.tables.catalogItems ?? []) as CatalogItem[]).filter((c) => c.name?.trim());
+  const trainingResources = ((snap.tables.trainingResources ?? []) as TrainingResource[]).filter((t) => t.title?.trim());
 
   const baseById = index(bases);
   const workspaceById = index(workspaces);
@@ -145,7 +156,7 @@ function build(snap: Snapshot): Data {
 
   return {
     fetchedAt: snap.fetchedAt, counts: snap.counts, warnings: snap.warnings,
-    users, groups, workspaces, bases, interfaces, datasets, requests, votes, accessRequests,
+    users, groups, workspaces, bases, interfaces, datasets, requests, votes, accessRequests, catalogItems, trainingResources,
     userById: index(users), userByEmail, groupById: index(groups), workspaceById, baseById,
     interfaceById: index(interfaces), datasetById: index(datasets), requestById: index(requests),
     accessRequestById: index(accessRequests),

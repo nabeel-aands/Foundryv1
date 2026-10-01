@@ -141,8 +141,9 @@ class OidcIdentity implements Identity {
 const g = globalThis as unknown as { __foundryIdentity?: Identity };
 
 export function getIdentity(): Identity {
-  if (g.__foundryIdentity) return g.__foundryIdentity;
-  assertAuthConfig();
   const mode = authMode();
+  // Re-check the mode every call: an env change in dev must not leave a stale provider behind.
+  if (g.__foundryIdentity && g.__foundryIdentity.mode === mode) return g.__foundryIdentity;
+  assertAuthConfig();
   return (g.__foundryIdentity = mode === "oidc" ? new OidcIdentity() : mode === "demo" ? new PersonaIdentity() : new OpenIdentity());
 }

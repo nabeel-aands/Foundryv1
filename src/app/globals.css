@@ -62,3 +62,13 @@ table.data th { text-align: left; font-family: var(--font-mono); font-size: .66r
 table.data td { padding: .6rem .6rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
 table.data tr:last-child td { border-bottom: none; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Info "i" hover: opens on hover and keyboard focus, stays open while the pointer is on it. */
+.infotip { position: relative; display: inline-flex; vertical-align: middle; }
+.infotip-btn { width: 1.05rem; height: 1.05rem; border-radius: 9999px; border: 1px solid var(--color-line-2); color: var(--color-muted); font: italic 600 .68rem/1 var(--font-sans); display: grid; place-items: center; background: var(--color-card); cursor: help; }
+.infotip-btn:hover, .infotip-btn:focus-visible { color: var(--color-ink); border-color: var(--color-ink); outline: none; }
+.infotip-panel { position: absolute; z-index: 30; top: calc(100% + .4rem); left: -.4rem; width: 20rem; max-width: 80vw; background: #1a1a14; color: #d9d8d2; border-radius: 12px; padding: 1rem 1.1rem; font-size: .8rem; line-height: 1.5; box-shadow: 0 8px 24px rgb(0 0 0 / .25); display: none; font-weight: 400; text-align: left; }
+.infotip:hover .infotip-panel, .infotip:focus-within .infotip-panel { display: block; }
+.infotip-panel::before { content: ""; position: absolute; left: 0; right: 0; top: -.5rem; height: .5rem; }
+.infotip-panel .eyebrow { color: var(--color-amber); }
+.infotip-panel b { color: #fff; }
