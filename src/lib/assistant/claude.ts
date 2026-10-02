@@ -1,27 +1,34 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { foundryConfig } from "@/lib/config";
 import type { CurrentUser } from "../persona";
-import { resolveLockedResource } from "../access";
 import type { Data } from "../snapshot";
 import { buildTools } from "./tools";
 import type { AskResult, Source, ToolCall } from "./types";
 
-const SYSTEM = `You are Ask Foundry, the assistant inside Foundry, an enterprise governance portal for an organisation's Airtable estate.
-You answer questions like "what's available to me for X", "has this been built already", "who owns Y" and "what should I do next".
+const COMMON = `You are Ask Foundry, the assistant inside Foundry, an enterprise governance portal for an organisation's Airtable estate.
 
 Rules:
-- Only use the tools. Never invent bases, datasets, people or numbers. If the tools return nothing, say so plainly.
-- Everything the tools return is already filtered to what this user may see. Do not speculate about what they cannot see beyond what find_locked returns.
-- Prefer reuse: if something exists and the user can open it, say that first. If it exists but is locked, tell them to request access. Only then suggest a new request, using draft_request.
-- Never output email addresses, record IDs, or URLs. Refer to people by display name only.
+- Only use the tools. Never invent items, datasets, people or numbers. If the tools return nothing, say so plainly.
+- Everything the tools return is already filtered to what this user may see. Do not speculate about anything else.
+- Never output email addresses, record IDs, or URLs. Refer to people by display name only, and to pages by name.
 - Answer in plain prose with short bullet lists (lines starting with '- '). Two to six sentences plus bullets is the right length. No headings, no bold or other markdown emphasis.
-- Your authority is capped at recommending. You cannot grant access, submit requests or change data.
-- This is a single-turn answer. Do not ask the user follow-up questions; state the concrete next step instead (open X, request access to Y, or draft a request).`;
+- Your authority is capped at recommending. You cannot grant access, submit requests or change data.`;
 
-const SYSTEM_CHAT = SYSTEM.replace(
-  "- This is a single-turn answer. Do not ask the user follow-up questions; state the concrete next step instead (open X, request access to Y, or draft a request).",
-  "- This is an ongoing conversation. Keep answers short and build on earlier turns; the user can refine a drafted request over several turns before submitting it.",
-);
+const MEMBER_RULES = `
+- You do not discuss specific bases or interfaces. Those are managed by admins, and you have no tool for them. If the user asks about a base, an app inside the Airtable estate, or getting access to one, say that bases are managed by admins and point them to the Airtable Library page for reusable apps, components and templates, or the Resources page for guides, documentation and live sessions. Never tell the user to request access to a base.
+- Prefer reuse, in this order: the Airtable Library (find_library), verified datasets (find_datasets), related roadmap proposals (roadmap_items). If none fits, suggest a new request and use draft_request. For learning questions use find_training and name the Resources page.
+- Say which page each suggestion lives on (Airtable Library, Resources, Roadmap).`;
+
+const ADMIN_RULES = `
+- This user is an admin. They can see the whole estate, so find_apps returns bases and interfaces from anywhere. There is no access to request; never suggest one.
+- Prefer reuse: the Airtable Library (find_library) and verified datasets first, then existing bases, then related proposals. Only then suggest a new request using draft_request. Use find_training for learning questions and name the Resources page.`;
+
+const ONE_TURN = `
+- This is a single-turn answer. Do not ask the user follow-up questions; state the concrete next step instead.`;
+const CHAT = `
+- This is an ongoing conversation. Keep answers short and build on earlier turns; the user can refine a drafted request over several turns before submitting it.`;
+
+const systemFor = (me: CurrentUser, chat: boolean) => COMMON + (me.isAdmin ? ADMIN_RULES : MEMBER_RULES) + (chat ? CHAT : ONE_TURN);
 
 /** Strip anything that looks like an email or an Airtable record/user id, as a last line of defence. */
 export function redact(text: string): string {
@@ -41,7 +48,6 @@ export type TurnResult = {
   usage: TurnUsage;
   toolCalls: ToolCall[];
   draft?: { title: string; description: string; useCase?: string };
-  accessDraft?: { kind: "base" | "interface"; id: string; name: string; workspace?: string; sensitivity: string; reason: string };
   stopReason?: string;
 };
 
@@ -94,7 +100,7 @@ export async function streamClaudeTurn(
     max_tokens: cfg.maxTokens,
     max_iterations: cfg.maxToolCalls + 1,
     stream: true,
-    system: [{ type: "text", text: SYSTEM_CHAT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: systemFor(me, true), cache_control: { type: "ephemeral" } }],
     tools,
     ...(isHaiku(cfg.model) ? {} : { thinking: { type: "adaptive" as const }, output_config: { effort: cfg.effort } }),
     messages,
@@ -124,8 +130,6 @@ export async function streamClaudeTurn(
 
   const text = redact(texts.join("").trim() || (stopReason === "refusal" ? "The model declined to answer this question." : "No answer was produced."));
   const draftCall = [...toolCalls].reverse().find((c) => c.name === "draft_request");
-  const accessCall = [...toolCalls].reverse().find((c) => c.name === "draft_access_request");
-  const accessHit = accessCall ? resolveLockedResource(data, me, String(accessCall.input.resourceName ?? "")) : undefined;
   const usage: TurnUsage = { inputTokens, outputTokens, cacheRead, iterations, ms: Date.now() - started, contextTokens };
   console.log(`[ask-foundry] chat · ${cfg.model} · ${toolCalls.length} tool calls · in ${inputTokens} (cached ${cacheRead}) · out ${outputTokens} · ${usage.ms}ms · persona ${me.role}`);
 
@@ -133,7 +137,6 @@ export async function streamClaudeTurn(
     messages: runner.params.messages as Anthropic.Beta.BetaMessageParam[],
     text, usage, toolCalls, stopReason,
     draft: draftCall ? { title: String(draftCall.input.title ?? ""), description: String(draftCall.input.description ?? ""), useCase: draftCall.input.useCase ? String(draftCall.input.useCase) : undefined } : undefined,
-    accessDraft: accessHit ? { ...accessHit, reason: String(accessCall?.input.reason ?? "") } : undefined,
   };
 }
 
@@ -149,7 +152,7 @@ export async function askClaude(data: Data, me: CurrentUser, question: string): 
     model: cfg.model,
     max_tokens: cfg.maxTokens,
     max_iterations: cfg.maxToolCalls + 1,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: systemFor(me, false), cache_control: { type: "ephemeral" } }],
     tools,
     ...(isHaiku(cfg.model) ? {} : { thinking: { type: "adaptive" as const }, output_config: { effort: cfg.effort } }),
     messages: [{ role: "user", content: `User role: ${me.role}. Org unit: ${me.orgUnit.value}.\n\nQuestion: ${question}` }],

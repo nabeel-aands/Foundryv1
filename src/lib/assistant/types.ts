@@ -1,4 +1,4 @@
-export type Source = { kind: "base" | "interface" | "dataset" | "request" | "workspace"; id: string; title: string; subtitle: string; inScope: boolean; href?: string };
+export type Source = { kind: "base" | "interface" | "dataset" | "request" | "workspace" | "catalog" | "resource"; id: string; title: string; subtitle: string; inScope: boolean; href?: string };
 
 export type ToolCall = { name: string; input: Record<string, unknown>; resultCount: number; ms: number };
 

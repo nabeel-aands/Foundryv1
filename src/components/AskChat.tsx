@@ -21,7 +21,7 @@ export type AskChatProps = {
   mode: "claude" | "keyword";
   model: string;
   starters: string[];
-  scope: { basesInScope: number; basesInEstate: number; datasets: number; visibleRequests: number; hiddenRequests: number; role: string; orgUnit: string; groups: string[]; external: boolean };
+  scope: { isAdmin: boolean; basesInEstate: number; library: number; resources: number; datasets: number; visibleRequests: number; hiddenRequests: number; role: string; orgUnit: string; groups: string[]; external: boolean };
   pendingAccess: number;
   accessAvailable: boolean;
 };
@@ -149,7 +149,9 @@ export function AskChat({ personaId, mode, model, starters, scope, pendingAccess
   };
 
   const groups: [string, Source[]][] = [
-    ["You can open", sources.filter((s) => s.inScope && (s.kind === "base" || s.kind === "interface"))],
+    ["In the Airtable Library", sources.filter((s) => s.kind === "catalog")],
+    ["On the Resources page", sources.filter((s) => s.kind === "resource")],
+    ["Bases and interfaces", sources.filter((s) => s.inScope && (s.kind === "base" || s.kind === "interface"))],
     ["You can link", sources.filter((s) => s.kind === "dataset")],
     ["Related proposals", sources.filter((s) => s.kind === "request")],
     ["People and workspaces", sources.filter((s) => s.kind === "workspace")],
@@ -240,7 +242,9 @@ export function AskChat({ personaId, mode, model, starters, scope, pendingAccess
       <aside className="card p-4 text-sm h-fit">
         <div className="eyebrow">Answering with</div>
         <ul className="mt-2 flex flex-col gap-2">
-          <li className="card p-2.5"><b>{scope.basesInScope}</b> bases in your scope<div className="text-xs text-muted">of {scope.basesInEstate} in the estate</div></li>
+          <li className="card p-2.5"><b>{scope.library}</b> library items<div className="text-xs text-muted">apps, components, templates</div></li>
+          <li className="card p-2.5"><b>{scope.resources}</b> training resources<div className="text-xs text-muted">guides, docs, live sessions</div></li>
+          {scope.isAdmin && <li className="card p-2.5"><b>{scope.basesInEstate}</b> bases in the estate<div className="text-xs text-muted">admins only</div></li>}
           <li className="card p-2.5"><b>{scope.datasets}</b> verified datasets<div className="text-xs text-muted">schema and steward only</div></li>
           <li className="card p-2.5"><b>{scope.visibleRequests}</b> roadmap items<div className="text-xs text-muted">{scope.hiddenRequests > 0 ? "excluding NDA-flagged items" : "none hidden from you"}</div></li>
           {pendingAccess > 0 && <li className="card p-2.5"><b>{pendingAccess}</b> access request{pendingAccess === 1 ? "" : "s"} pending<div className="text-xs text-muted">status on the Roadmap page</div></li>}

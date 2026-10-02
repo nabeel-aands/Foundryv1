@@ -17,7 +17,7 @@ export async function ask(data: Data, me: CurrentUser, question: string): Promis
   if (!q) return { mode: assistantMode(), answer: "", sources: [], toolCalls: [] };
   const kv = getKV();
   // The snapshot stamp is in the key, so a refresh naturally misses rather than serving stale numbers.
-  const key = `ask:answer:${me.user.id}|${data.fetchedAt}|${q.toLowerCase()}`;
+  const key = `ask:v2:${me.user.id}|${me.role}|${data.fetchedAt}|${q.toLowerCase()}`;
   const hit = await kv.get<AskResult>(key);
   if (hit) return { ...hit, cached: true };
 

@@ -1,19 +1,35 @@
 import type { CurrentUser } from "../persona";
 import type { Data } from "../snapshot";
 import { canSee } from "../requests";
-import { searchCatalog } from "../search";
-import type { AskResult } from "./types";
+import { searchCatalog, searchLibrary, searchTraining } from "../search";
+import type { AskResult, Source } from "./types";
 
-/** Deterministic fallback when no model is configured. Same scope rules, no generation. */
+/** Deterministic fallback when no model is configured. Same role rules, no generation. */
 export function askKeyword(data: Data, me: CurrentUser, question: string): AskResult {
-  const results = searchCatalog(data, me.scope, question, 12);
-  const open = results.filter((r) => r.inScope && (r.kind === "base" || r.kind === "interface"));
-  const link = results.filter((r) => r.kind === "dataset");
-  const locked = results.filter((r) => !r.inScope);
-  const proposals = results.filter((r) => r.kind === "request" && (() => { const req = data.requestById.get(r.id); return req ? canSee(req, me) : false; })());
   const n = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
-  const answer = results.length
-    ? `Within your scope there ${open.length === 1 ? "is" : "are"} ${n(open.length, "thing")} you can open today, ${n(link.length, "verified dataset")} you could link, ${n(proposals.length, "related proposal")} and ${n(locked.length, "item")} that exist but need access.`
-    : `Nothing in the catalog matches "${question}". Nothing on the roadmap duplicates it either, so a request would be new.`;
-  return { mode: "keyword", answer, sources: results.map((r) => ({ kind: r.kind, id: r.id, title: r.title, subtitle: r.subtitle, inScope: r.inScope, href: r.href })), toolCalls: [{ name: "keyword_search", input: { query: question }, resultCount: results.length, ms: 0 }] };
+  const found = searchCatalog(data, me.scope, question, 12);
+  const library = searchLibrary(data, question, 5);
+  const training = searchTraining(data, question, 4);
+  const datasets = found.filter((r) => r.kind === "dataset");
+  const proposals = found.filter((r) => r.kind === "request" && (() => { const req = data.requestById.get(r.id); return req ? canSee(req, me) : false; })());
+  // Bases and interfaces are for admins only. Members get the Library and Resources instead.
+  const bases = me.isAdmin ? found.filter((r) => r.kind === "base" || r.kind === "interface") : [];
+
+  const sources: Source[] = [
+    ...library.map((c): Source => ({ kind: "catalog", id: c.id, title: c.name ?? "", subtitle: `${c.type ?? "Library item"} · Airtable Library`, inScope: true, href: "/library" })),
+    ...training.map((r): Source => ({ kind: "resource", id: r.id, title: r.title ?? "", subtitle: `${r.format ?? "Resource"} · ${r.topic ?? "Resources page"}`, inScope: true, href: "/resources" })),
+    ...[...bases, ...datasets, ...proposals].map((r): Source => ({ kind: r.kind, id: r.id, title: r.title, subtitle: r.subtitle, inScope: true, href: r.href })),
+  ];
+
+  const parts = [
+    `${n(library.length, "item")} in the Airtable Library`,
+    `${n(datasets.length, "verified dataset")}`,
+    `${n(proposals.length, "related proposal")}`,
+    `${n(training.length, "resource")} on the Resources page`,
+    ...(me.isAdmin ? [`${bases.length} bases and interfaces`] : []),
+  ];
+  const answer = sources.length
+    ? `For "${question}" I found ${parts.join(", ")}.${me.isAdmin ? "" : " Bases are managed by admins; browse the Airtable Library and Resources pages for what you can reuse."}`
+    : `Nothing matches "${question}". ${me.isAdmin ? "A request would be new." : "Check the Airtable Library and Resources pages, or submit a request from Build something."}`;
+  return { mode: "keyword", answer, sources, toolCalls: [{ name: "keyword_search", input: { query: question }, resultCount: sources.length, ms: 0 }] };
 }

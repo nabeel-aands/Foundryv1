@@ -80,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
       await saveConversation(conversation);
       send({ event: "done", data: {
         mode: "claude", model: foundryConfig.assistant.model, conversationId: conversation.id, turns: conversation.turns,
-        usage: result.usage, sources: conversation.sources, toolCalls: result.toolCalls, draft: result.draft, accessDraft: result.accessDraft,
+        usage: result.usage, sources: conversation.sources, toolCalls: result.toolCalls, draft: result.draft,
       } });
       close();
     } catch (e) {

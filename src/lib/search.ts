@@ -61,3 +61,22 @@ export function searchCatalog(data: Data, scope: Scope, query: string, limit = 8
   }
   return out.sort((a, b) => b.score - a.score || Number(b.inScope) - Number(a.inScope)).slice(0, limit);
 }
+
+
+const arr = (v: string | string[] | undefined): string[] => (Array.isArray(v) ? v : v ? [v] : []);
+
+/** Library items (Catalog Items table) ranked by keyword; no query lists the featured ones first. */
+export function searchLibrary(data: Data, query: string, limit = 8) {
+  const toks = tokens(query);
+  return data.catalogItems
+    .map((c) => ({ c, s: toks.length ? score(`${c.name ?? ""} ${c.description ?? ""} ${c.type ?? ""} ${c.owner ?? ""} ${arr(c.audience).join(" ")}`, toks).score : c.featured ? 2 : 1 }))
+    .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, limit).map((x) => x.c);
+}
+
+/** Training resources (Training Resources table) ranked by keyword. */
+export function searchTraining(data: Data, query: string, limit = 8) {
+  const toks = tokens(query);
+  return data.trainingResources
+    .map((r) => ({ r, s: toks.length ? score(`${r.title ?? ""} ${r.description ?? ""} ${r.topic ?? ""} ${r.format ?? ""} ${r.level ?? ""}`, toks).score : 1 }))
+    .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, limit).map((x) => x.r);
+}
