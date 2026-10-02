@@ -54,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const keywordAnswer = async () => {
+      console.log(`[usage] not recorded for ${me.user.id}: keyword answer (no model call)`);
       const r = askKeyword(data, me, message);
       send({ event: "text", data: { delta: r.answer } });
       mergeSources(conversation.sources, r.sources);
@@ -79,12 +80,13 @@ export async function POST(request: Request): Promise<Response> {
       mergeSources(conversation.sources, turnSources);
       trimConversation(conversation);
       await saveConversation(conversation);
+      // The text is already on screen. Write the usage to Airtable BEFORE "done": once the client has its
+      // answer it may drop the connection, and a serverless function can be stopped when that happens.
+      await recordUsage(me, foundryConfig.assistant.model, result.usage);
       send({ event: "done", data: {
         mode: "claude", model: foundryConfig.assistant.model, conversationId: conversation.id, turns: conversation.turns,
         usage: result.usage, sources: conversation.sources, toolCalls: result.toolCalls, draft: result.draft,
       } });
-      // After the answer is delivered: add this turn to the person's monthly usage in Airtable.
-      await recordUsage(me, foundryConfig.assistant.model, result.usage);
       close();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
