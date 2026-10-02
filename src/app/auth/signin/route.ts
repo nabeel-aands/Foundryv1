@@ -53,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
   <h1>Sign in</h1>
   <p>Foundry uses your Airtable account. You will be asked to sign in to Airtable and allow Foundry to read your email address.</p>
   <a class="btn" href="${escape(href)}">Sign in with Airtable</a>
-  <small>Access is decided by this organisation's Airtable Users table, not by Airtable itself.</small>
+  <small>Access is decided by this organisation's Airtable Users table, not by Airtable itself.<br>By signing in you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.</small>
 </main></body></html>`;
   return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

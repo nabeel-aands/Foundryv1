@@ -13,8 +13,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-/** Reachable without a session: health checks, cron, Airtable's webhook, and sign-in itself. */
-const PUBLIC_PREFIXES = ["/auth/", "/api/health", "/api/jobs/", "/api/webhooks/"];
+/** Reachable without a session: health checks, cron, Airtable's webhook, sign-in itself, and the legal pages Airtable's OAuth settings link to. */
+const PUBLIC_PREFIXES = ["/auth/", "/api/health", "/api/jobs/", "/api/webhooks/", "/terms", "/privacy"];
 
 function sessionValid(token: string | undefined, secret: string): boolean {
   if (!token) return false;
