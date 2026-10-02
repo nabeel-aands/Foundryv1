@@ -44,6 +44,11 @@ export const FIELD_ALIASES: Record<TableKey, Record<string, string[]>> = {
     interfacesPortal: ["Interfaces (via Portal Collaborator User IDs)", "Interfaces via Portal Collaborator User IDs"],
     requests: ["Foundry - Requests", "Requests"],
     votes: ["Foundry - Votes", "Votes"],
+    // Ask Foundry usage this month. Local number fields on the Users table; an Airtable automation resets them monthly.
+    aiTokensIn: ["AI Tokens In"],
+    aiTokensOut: ["AI Tokens Out"],
+    aiCost: ["AI Cost (USD)", "AI Cost"],
+    aiQuestions: ["AI Questions"],
   },
   groups: {
     groupId: ["Group ID"],

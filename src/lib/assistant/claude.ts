@@ -3,6 +3,7 @@ import { foundryConfig } from "@/lib/config";
 import type { CurrentUser } from "../persona";
 import type { Data } from "../snapshot";
 import { buildTools } from "./tools";
+import { recordUsage } from "../usage";
 import type { AskResult, Source, ToolCall } from "./types";
 
 const COMMON = `You are Ask Foundry, the assistant inside Foundry, an enterprise governance portal for an organisation's Airtable estate.
@@ -39,7 +40,7 @@ function isHaiku(model: string) {
   return /haiku/i.test(model);
 }
 
-export type TurnUsage = { inputTokens: number; outputTokens: number; cacheRead: number; iterations: number; ms: number; contextTokens: number };
+export type TurnUsage = { inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number; iterations: number; ms: number; contextTokens: number };
 
 export type TurnResult = {
   /** Full message history after this turn, including tool_use/tool_result blocks. */
@@ -106,7 +107,7 @@ export async function streamClaudeTurn(
     messages,
   });
 
-  let inputTokens = 0, outputTokens = 0, cacheRead = 0, iterations = 0, contextTokens = 0;
+  let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0, iterations = 0, contextTokens = 0;
   let flushed = 0;
   const flushTools = () => { while (flushed < toolCalls.length) emit.onToolEnd(toolCalls[flushed++]); };
   const texts: string[] = [];
@@ -123,6 +124,7 @@ export async function streamClaudeTurn(
     inputTokens += msg.usage.input_tokens;
     outputTokens += msg.usage.output_tokens;
     cacheRead += msg.usage.cache_read_input_tokens ?? 0;
+    cacheWrite += msg.usage.cache_creation_input_tokens ?? 0;
     contextTokens = msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);
     stopReason = msg.stop_reason ?? undefined;
   }
@@ -130,7 +132,7 @@ export async function streamClaudeTurn(
 
   const text = redact(texts.join("").trim() || (stopReason === "refusal" ? "The model declined to answer this question." : "No answer was produced."));
   const draftCall = [...toolCalls].reverse().find((c) => c.name === "draft_request");
-  const usage: TurnUsage = { inputTokens, outputTokens, cacheRead, iterations, ms: Date.now() - started, contextTokens };
+  const usage: TurnUsage = { inputTokens, outputTokens, cacheRead, cacheWrite, iterations, ms: Date.now() - started, contextTokens };
   console.log(`[ask-foundry] chat · ${cfg.model} · ${toolCalls.length} tool calls · in ${inputTokens} (cached ${cacheRead}) · out ${outputTokens} · ${usage.ms}ms · persona ${me.role}`);
 
   return {
@@ -158,7 +160,7 @@ export async function askClaude(data: Data, me: CurrentUser, question: string): 
     messages: [{ role: "user", content: `User role: ${me.role}. Org unit: ${me.orgUnit.value}.\n\nQuestion: ${question}` }],
   });
 
-  let inputTokens = 0, outputTokens = 0, cacheRead = 0, iterations = 0;
+  let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0, iterations = 0;
   let last: Anthropic.Beta.BetaMessage | undefined;
   for await (const message of runner) {
     iterations++;
@@ -166,11 +168,13 @@ export async function askClaude(data: Data, me: CurrentUser, question: string): 
     inputTokens += message.usage.input_tokens;
     outputTokens += message.usage.output_tokens;
     cacheRead += message.usage.cache_read_input_tokens ?? 0;
+    cacheWrite += message.usage.cache_creation_input_tokens ?? 0;
   }
   const final = last;
   const text = (final?.content ?? []).filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
   const draftCall = toolCalls.find((c) => c.name === "draft_request");
   const usage = { inputTokens, outputTokens, cacheRead, iterations, ms: Date.now() - started };
+  await recordUsage(me, cfg.model, { inputTokens, outputTokens, cacheRead, cacheWrite });
   console.log(`[ask-foundry] ${cfg.model} · ${toolCalls.length} tool calls · in ${inputTokens} (cached ${cacheRead}) · out ${outputTokens} · ${usage.ms}ms · persona ${me.role}`);
 
   return {

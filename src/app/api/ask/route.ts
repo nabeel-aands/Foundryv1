@@ -9,6 +9,7 @@ import { assistantMode } from "@/lib/assistant";
 import { askKeyword } from "@/lib/assistant/keyword";
 import { createConversation, discardConversation, getConversation, saveConversation, takeMessageBudget, trimConversation } from "@/lib/assistant/conversations";
 import { SSE_HEADERS, sseStream } from "@/lib/assistant/stream";
+import { recordUsage } from "@/lib/usage";
 import type { Source } from "@/lib/assistant/types";
 
 export const runtime = "nodejs";
@@ -82,6 +83,8 @@ export async function POST(request: Request): Promise<Response> {
         mode: "claude", model: foundryConfig.assistant.model, conversationId: conversation.id, turns: conversation.turns,
         usage: result.usage, sources: conversation.sources, toolCalls: result.toolCalls, draft: result.draft,
       } });
+      // After the answer is delivered: add this turn to the person's monthly usage in Airtable.
+      await recordUsage(me, foundryConfig.assistant.model, result.usage);
       close();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -88,6 +88,11 @@ export class Airtable {
     return out;
   }
 
+  /** One record, fresh from Airtable (not the snapshot), fields keyed by field ID. */
+  getRecord(tableId: string, recordId: string): Promise<AirtableRecord> {
+    return this.request(`/${this.baseId}/${tableId}/${recordId}?returnFieldsByFieldId=true`);
+  }
+
   /** Create up to 10 records. Fields keyed by field ID. Never uses typecast. */
   async createRecords(tableId: string, records: { fields: Record<string, unknown> }[]): Promise<AirtableRecord[]> {
     if (records.length > 10) throw new Error("createRecords: max 10 per call");

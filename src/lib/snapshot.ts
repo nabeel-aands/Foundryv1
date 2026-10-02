@@ -12,6 +12,7 @@ export type User = CanonRecord & {
   ssoRequired?: boolean; joined?: string; department?: string; costCenter?: string; title?: string;
   groups?: string[]; workspacesOwned?: string[]; workspacesCollab?: string[]; basesCollab?: string[];
   interfacesCollab?: string[]; interfacesPortal?: string[];
+  aiTokensIn?: number; aiTokensOut?: number; aiCost?: number; aiQuestions?: number;
 };
 export type Group = CanonRecord & {
   groupId?: string; name?: string; members?: string[]; memberCount?: number;

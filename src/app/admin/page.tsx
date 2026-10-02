@@ -9,6 +9,7 @@ import { Tile } from "@/components/Tile";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
 import { refreshAll } from "../actions";
+import { usageFieldsPresent } from "@/lib/usage";
 import { ROW_CAP, filterPanel, isPanelKey, panel, searchEstate, type PanelKey, type Row } from "@/lib/admin";
 
 function Table({ columns, rows }: { columns: string[]; rows: Row[] }) {
@@ -54,6 +55,11 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     );
   };
   const users = data.users;
+  const aiTracked = usageFieldsPresent();
+  const sum = (f: (u: (typeof users)[number]) => number | undefined) => users.reduce((n, u) => n + (f(u) ?? 0), 0);
+  const aiCost = sum((u) => u.aiCost), aiIn = sum((u) => u.aiTokensIn), aiOut = sum((u) => u.aiTokensOut), aiQuestions = sum((u) => u.aiQuestions);
+  const aiQTracked = users.some((u) => u.aiQuestions !== undefined);
+  const aiPeople = users.filter((u) => (u.aiQuestions ?? 0) > 0 || (u.aiCost ?? 0) > 0).length;
   const active = users.filter((u) => (u.status ?? "").toLowerCase() === "active");
   const deactivated = users.length - active.length;
   const admins = users.filter((u) => u.admin);
@@ -137,6 +143,15 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       </div>
 
       <Panel keys={["workspaces", "bases", "interfaces", "datasets", "unclassified", "ext-bases", "no-steward"]} />
+
+      <h2 className="font-semibold mt-8">Ask Foundry usage</h2>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+        <Tile label="Cost this month" href={aiTracked ? to("ai-usage") : undefined} open={open === "ai-usage"} value={aiTracked ? `$${aiCost.toFixed(2)}` : "—"} sub={aiTracked ? "all users, USD, from tokens and the price table" : "Add AI Tokens In, AI Tokens Out and AI Cost (USD) number fields to the Users table"} kind={aiTracked ? "real" : "modelled"} />
+        <Tile label="Tokens in" value={aiTracked ? aiIn.toLocaleString() : "—"} sub="includes cached tokens" kind={aiTracked ? "real" : "modelled"} />
+        <Tile label="Tokens out" value={aiTracked ? aiOut.toLocaleString() : "—"} sub="answers and tool calls" kind={aiTracked ? "real" : "modelled"} />
+        <Tile label="Questions" value={aiQTracked ? aiQuestions.toLocaleString() : "—"} sub={aiTracked ? `${aiPeople} ${aiPeople === 1 ? "person" : "people"} used it${aiQTracked ? "" : " · add an AI Questions field to count questions"}` : "resets monthly by automation"} kind={aiQTracked ? "real" : "modelled"} />
+      </div>
+      <Panel keys={["ai-usage"]} />
 
       <div className="grid lg:grid-cols-2 gap-4 mt-8">
         <section className="card">

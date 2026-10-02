@@ -59,6 +59,8 @@ export const foundryConfig = {
     maxTurns: 20,
     messagesPerHour: 30,
     trimAtInputTokens: 40000,
+    /** USD per million tokens, by model id. Cache reads cost 10% of input and cache writes 125%. Add a line when you change model. */
+    pricePerMTok: { "claude-haiku-4-5": { input: 1, output: 5 } } as Record<string, { input: number; output: number }>,
   },
   /** Emails offered as quick picks in the persona switcher. Empty = auto-pick one per role. */
   personas: { quickPicks: [] as string[] },

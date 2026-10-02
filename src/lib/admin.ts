@@ -14,7 +14,7 @@ export const ROW_CAP = 50;
 
 export const PANEL_KEYS = [
   "users", "admins", "external", "no2fa", "inactive", "groups", "workspaces", "bases", "unclassified",
-  "ext-bases", "interfaces", "datasets", "no-steward",
+  "ext-bases", "interfaces", "datasets", "no-steward", "ai-usage",
 ] as const;
 export type PanelKey = (typeof PANEL_KEYS)[number];
 export const isPanelKey = (k: string): k is PanelKey => (PANEL_KEYS as readonly string[]).includes(k);
@@ -68,6 +68,11 @@ export function panel(key: PanelKey, data: Data): Section {
       return { cells: [i.name ?? "—", base?.name ?? "—", i.sensitivity ?? base?.sensitivity ?? "Unclassified", String(i.collaboratorCount ?? (i.collaborators ?? []).length), (i.portalCollaborators ?? []).length ? "Yes" : "—"], href: base?.baseId && i.interfaceId ? foundryConfig.urls.interface(base.baseId, i.interfaceId) : undefined };
     }));
     case "datasets": return mk("Verified datasets", ["Dataset", "Steward", "Org unit", "Status", "Used by"], data.datasets.map((d) => ({ cells: [d.name ?? "—", stewardName(d) ?? "Unowned", d.orgUnit ?? "—", `${d.verified ? "Verified · " : ""}${d.status ?? "—"}`, `${(d.basesUsing ?? []).length} bases`] })));
+    case "ai-usage": return mk("Ask Foundry usage this month", ["Name", "Email", "Questions", "Tokens in", "Tokens out", "Cost (USD)"], data.users
+      .filter((u) => (u.aiQuestions ?? 0) > 0 || (u.aiCost ?? 0) > 0)
+      .sort((a, b) => (b.aiCost ?? 0) - (a.aiCost ?? 0) || (b.aiQuestions ?? 0) - (a.aiQuestions ?? 0))
+      .map((u) => ({ cells: [displayName(u), u.email ?? "—", String(u.aiQuestions ?? 0), (u.aiTokensIn ?? 0).toLocaleString(), (u.aiTokensOut ?? 0).toLocaleString(), `$${(u.aiCost ?? 0).toFixed(4)}`] })),
+      "Counted per answer and reset monthly by an Airtable automation. Only people who asked something are listed.");
     case "no-steward": return mk("Datasets with no steward", ["Dataset", "Org unit", "Status", "Used by"], data.datasets.filter((d) => !stewardName(d)).map((d) => ({ cells: [d.name ?? "—", d.orgUnit ?? "—", d.status ?? "—", `${(d.basesUsing ?? []).length} bases`] })), "Assign an Owner in the Verified Datasets table.");
   }
 }
