@@ -42,6 +42,8 @@ body { background: var(--color-frame); padding: var(--frame-gutter); color: var(
 .app-frame { min-height: calc(100vh - 2 * var(--frame-gutter)); border: var(--border-width) solid var(--border-color); border-radius: var(--radius-frame); overflow: hidden; background: var(--color-paper); }
 @media (min-width: 768px) { .app-frame { height: calc(100vh - 2 * var(--frame-gutter)); min-height: 0; } }
 h1, h2 { font-family: var(--font-display); }
+/* The small label above a page title ("Build something", "Good afternoon, …"). */
+.eyebrow:has(+ h1) { color: var(--color-ink-2); font-weight: 700; font-size: 0.85rem; letter-spacing: 0.06em; }
 h1 { color: #000; font-weight: 700; font-size: 1.875rem; line-height: 1.15; letter-spacing: -0.02em; }
 @media (min-width: 768px) { h1 { font-size: 2.5rem; } }
 .card { background: var(--color-card); border: var(--border-width) solid var(--border-color); border-radius: var(--radius-card); }
