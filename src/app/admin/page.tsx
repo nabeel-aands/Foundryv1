@@ -1,3 +1,4 @@
+import { SearchBox } from "@/components/SearchBox";
 import { redirect } from "next/navigation";
 import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
@@ -37,7 +38,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   if (!me.isAdmin) redirect("/?msg=admin");
   const data = await getData();
   const open: PanelKey | undefined = sp.open && isPanelKey(sp.open) ? sp.open : undefined;
-  const to = (k?: PanelKey) => { const p = new URLSearchParams(); if (k && k !== open) p.set("open", k); if (q) p.set("q", q); const t = p.toString(); return (t ? `/admin?${t}` : "/admin") + (k && k !== open ? "#panel" : ""); };
+  const to = (k?: PanelKey) => { const p = new URLSearchParams(); if (k && k !== open) p.set("open", k); if (q) p.set("q", q); const t = p.toString(); return (t ? `/admin?${t}` : "/admin"); };
   const openPanel = open ? filterPanel(panel(open, data), q) : undefined;
   const results = !open && q ? searchEstate(data, q) : [];
   const Panel = ({ keys }: { keys: PanelKey[] }) => {
@@ -83,7 +84,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const largest = [...data.bases].sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0)).slice(0, 8);
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Governance console</div>
@@ -93,12 +94,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <form action={refreshAll}><button className="btn" type="submit" title="Re-pull every table from Airtable (about 8 seconds)">Refresh from Airtable</button></form>
       </div>
 
-      <form action="/admin" method="get" className="mt-4 flex gap-2 max-w-2xl">
-        {open && <input type="hidden" name="open" value={open} />}
-        <input name="q" defaultValue={q} placeholder={open ? `Filter “${openPanel?.title}”` : "Search people, groups, workspaces, bases, interfaces, datasets"} aria-label="Search" />
-        <button className="btn" type="submit">Search</button>
-        {q && <Link className="btn btn-ghost" href={open ? `/admin?open=${open}` : "/admin"}>Clear</Link>}
-      </form>
+      <SearchBox className="mt-4 max-w-2xl" label="Search" placeholder={open ? `Filter “${openPanel?.title}”` : "Search people, groups, workspaces, bases, interfaces, datasets"} />
 
       {q && !open && (
         <div className="mt-4 flex flex-col gap-4">

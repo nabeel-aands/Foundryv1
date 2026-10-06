@@ -216,7 +216,7 @@ export function AskChat({ personaId, mode, model, starters, scope, pendingAccess
         {messages.length === 0 && (
           <div className="flex flex-wrap gap-2 text-xs mb-3">
             {starters.map((s) => (
-              <button key={s} type="button" onClick={() => send(s)} className="chip chip-neutral !py-1.5 !px-2.5 !text-[11px] hover:bg-line cursor-pointer">{s}</button>
+              <button key={s} type="button" onClick={() => send(s)} className="pill">{s}</button>
             ))}
           </div>
         )}

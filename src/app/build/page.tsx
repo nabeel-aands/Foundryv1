@@ -45,12 +45,12 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
   const steps = ["Describe", "What already exists", "Choose a path", "Confirm"];
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="eyebrow">Build something</div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">New request</h1>
-      <ol className="mt-4 flex flex-wrap gap-2 text-xs mono">
+      <ol className="mt-4 flex flex-wrap gap-2">
         {steps.map((s, i) => (
-          <li key={s} className={`flex items-center gap-2 px-2.5 py-1.5 rounded ${i + 1 === step ? "bg-ink text-white" : i + 1 < step ? "bg-amber-soft text-ink" : "bg-card-2 text-muted"}`}>
+          <li key={s} className={`pill cursor-default ${i + 1 === step ? "pill-active" : i + 1 < step ? "!bg-amber-soft" : "!text-muted"}`}>
             <span className="w-4 h-4 rounded-full grid place-items-center text-[10px] border border-current">{i + 1}</span>{s}
           </li>
         ))}

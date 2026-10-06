@@ -1,11 +1,15 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { foundryConfig } from "@/lib/config";
 import { getCurrentUser } from "@/lib/persona";
-import { getData, stewardName, type Base } from "@/lib/snapshot";
+import { getData, stewardName, type Base, type Interface } from "@/lib/snapshot";
 import { isSandboxWorkspace } from "@/lib/scope";
 import { Chip, SensitivityChip } from "@/components/Chip";
 import { OpenInAirtable } from "@/components/OpenInAirtable";
+import { SearchBox } from "@/components/SearchBox";
+import { ShowMoreRows } from "@/components/ShowMoreRows";
+import { ExpandAll } from "@/components/ExpandAll";
 import { RequestAccess } from "@/components/RequestAccess";
 import { accessRequestsAvailable, pendingRequestFor } from "@/lib/access";
 
@@ -26,38 +30,41 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
     const k = b.workspaceName ?? "Unknown workspace";
     byWorkspace.set(k, [...(byWorkspace.get(k) ?? []), b]);
   }
+  const datasets = data.datasets.filter((d) => !needle || `${d.name ?? ""} ${d.description ?? ""} ${d.orgUnit ?? ""} ${stewardName(d) ?? ""} ${(d.audience ?? []).join(" ")} ${d.status ?? ""}`.toLowerCase().includes(needle));
   const groups = [...byWorkspace.entries()].sort((a, b) => b[1].length - a[1].length);
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Admin · Airtable Inventory</div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">The whole estate</h1>
           <p className="text-sm text-ink-2 mt-1">{inScope.length} bases in {groups.length} workspaces{me.isAdmin ? " · viewing as admin" : ` · ${lockedBases.length} more exist that you cannot open`}</p>
         </div>
-        <form className="flex gap-2 w-full md:w-96" method="get">
-          <input name="q" defaultValue={q} placeholder="Filter by base or workspace name" aria-label="Filter" />
-          {locked && <input type="hidden" name="locked" value="1" />}
-          <button className="btn" type="submit">Filter</button>
-        </form>
+        <SearchBox className="w-full md:w-96" label="Filter" placeholder="Filter workspaces, bases and verified datasets" />
       </div>
 
       {msg && <div className="mt-4 card !bg-amber-soft px-4 py-2 text-sm">{msg}</div>}
 
-      <div className="mt-6 flex flex-col gap-6">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold flex items-baseline gap-2">Workspaces <span className="mono text-xs text-muted">{groups.length}</span></h2>
+        {groups.length > 1 && <ExpandAll group="ws" />}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-4">
         {groups.map(([ws, bases]) => {
           const w = data.workspaces.find((x) => x.name === ws);
           const sandbox = isSandboxWorkspace(ws);
           return (
-            <section key={ws} className="card">
-              <header className="px-4 py-3 border-b border-line flex flex-wrap items-center gap-2">
+            <details key={ws} data-group="ws" open={!!needle} className="card group">
+              <summary className="px-4 py-3 flex flex-wrap items-center gap-2 cursor-pointer list-none group-open:border-b group-open:border-line">
+                <span aria-hidden className="text-[10px] transition-transform group-open:rotate-90">▶</span>
                 <h2 className="font-semibold">{ws}</h2>
                 <span className="text-xs text-muted mono">{bases.length} bases</span>
                 {sandbox && <Chip kind="warn">Sandbox workspace</Chip>}
                 {w?.aiStatus && <Chip kind="neutral">AI {w.aiStatus.replace("Allowed ", "")}</Chip>}
                 {w?.system && <Chip kind="neutral">System</Chip>}
-              </header>
+              </summary>
               <div className="overflow-x-auto">
                 <table className="data">
                   <thead><tr><th>Base</th><th>Sensitivity</th><th className="text-right">Rows</th><th className="text-right">Interfaces</th><th className="text-right">Collaborators</th><th></th></tr></thead>
@@ -66,7 +73,8 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
                       const ifaces = data.interfacesByBase.get(b.id) ?? [];
                       const open = ifaces.filter((i) => me.isAdmin || me.scope.interfaces.has(i.id));
                       return (
-                        <tr key={b.id}>
+                        <Fragment key={b.id}>
+                        <tr className={open.length > 0 ? "[&>td]:!border-b-0" : ""}>
                           <td>
                             <div className="font-medium">{b.name}</div>
                             <div className="text-xs text-muted flex flex-wrap gap-1 mt-0.5">
@@ -74,21 +82,6 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
                               {(b.verifiedDatasets ?? []).length > 0 && <Chip kind="real">uses {b.verifiedDatasets!.length} verified dataset{b.verifiedDatasets!.length > 1 ? "s" : ""}</Chip>}
                               {!me.isAdmin && <span className="mono">via {[...(me.scope.bases.get(b.id) ?? [])].map((v) => v.split(":")[0]).join(", ")}</span>}
                             </div>
-                            {open.length > 0 && (
-                              <details className="mt-1 text-xs">
-                                <summary className="cursor-pointer text-ink-2">{open.length} interface{open.length > 1 ? "s" : ""}</summary>
-                                <ul className="mt-1 pl-3 flex flex-col gap-0.5">
-                                  {open.slice(0, 12).map((i) => (
-                                    <li key={i.id} className="flex items-center gap-2">
-                                      <span>{i.name}</span>
-                                      <SensitivityChip value={i.sensitivity ?? b.sensitivity} />
-                                      {b.baseId && i.interfaceId && <a className="text-sky-deep underline" href={foundryConfig.urls.interface(b.baseId, i.interfaceId)} target="_blank" rel="noreferrer">open ↗</a>}
-                                    </li>
-                                  ))}
-                                  {open.length > 12 && <li className="text-muted">+{open.length - 12} more</li>}
-                                </ul>
-                              </details>
-                            )}
                           </td>
                           <td><SensitivityChip value={b.sensitivity} /></td>
                           <td className="text-right tnum">{(b.rowCount ?? 0).toLocaleString()}</td>
@@ -96,12 +89,14 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
                           <td className="text-right tnum">{b.collaboratorCount ?? (b.collaborators ?? []).length}</td>
                           <td className="text-right"><OpenInAirtable href={b.baseId ? foundryConfig.urls.base(b.baseId) : undefined} small /></td>
                         </tr>
+                        {open.length > 0 && <tr><td colSpan={6} className="!pt-0"><InterfaceList interfaces={open} base={b} /></td></tr>}
+                        </Fragment>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
-            </section>
+            </details>
           );
         })}
         {!groups.length && <div className="card p-6 text-sm text-muted">Nothing in your scope matches “{q}”.</div>}
@@ -135,16 +130,17 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
         </section>
       )}
 
-      <section id="datasets" className="mt-8 card">
-        <header className="px-4 py-3 border-b border-line flex items-center gap-2">
+      <details id="datasets" open className="mt-8 card group">
+        <summary className="px-4 py-3 flex items-center gap-2 cursor-pointer list-none group-open:border-b group-open:border-line">
+          <span aria-hidden className="text-[10px] transition-transform group-open:rotate-90">▶</span>
           <h2 className="font-semibold">Verified datasets</h2>
-          <span className="text-xs text-muted mono">{data.datasets.length} · schema and steward visible to everyone</span>
-        </header>
+          <span className="text-xs text-muted mono">{needle ? `${datasets.length} of ${data.datasets.length}` : data.datasets.length} · schema and steward visible to everyone</span>
+        </summary>
         <div className="overflow-x-auto">
           <table className="data">
             <thead><tr><th>Data set</th><th>Steward</th><th>Org unit</th><th>Audience</th><th>Status</th><th className="text-right">Used by</th></tr></thead>
             <tbody>
-              {data.datasets.map((d) => (
+              {datasets.map((d) => (
                 <tr key={d.id}>
                   <td><div className="font-medium">{d.name}</div><div className="text-xs text-muted max-w-md">{d.description}</div></td>
                   <td>{stewardName(d) ? <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-real" />{stewardName(d)}</span> : <span className="text-muted">unowned</span>}</td>
@@ -156,8 +152,40 @@ export default async function Inventory({ searchParams }: { searchParams: Promis
               ))}
             </tbody>
           </table>
+          {!datasets.length && <p className="px-4 py-6 text-sm text-muted">No verified dataset matches “{q}”.</p>}
         </div>
-      </section>
+      </details>
     </div>
+  );
+}
+
+const IFACE_COLS = "grid grid-cols-[minmax(0,1fr)_7rem_4rem] items-center gap-3 px-3";
+
+function InterfaceRows({ items, base }: { items: Interface[]; base: Base }) {
+  return items.map((i) => {
+    const sens = i.sensitivity ?? base.sensitivity;
+    return (
+      <div key={i.id} className={`${IFACE_COLS} py-1.5 border-t border-line text-xs`}>
+        <span className="truncate" title={i.name}>{i.name}</span>
+        <span>{sens ? <SensitivityChip value={sens} /> : <span className="text-muted">—</span>}</span>
+        <span className="text-right">{base.baseId && i.interfaceId ? <a className="text-sky-deep underline" href={foundryConfig.urls.interface(base.baseId, i.interfaceId)} target="_blank" rel="noreferrer">open ↗</a> : null}</span>
+      </div>
+    );
+  });
+}
+
+/** Interfaces of a base as a small table: the first 10, the rest behind a toggle. */
+function InterfaceList({ interfaces, base }: { interfaces: Interface[]; base: Base }) {
+  const first = interfaces.slice(0, 10);
+  const rest = interfaces.slice(10);
+  return (
+    <details className="mt-2 text-xs">
+      <summary className="cursor-pointer text-ink-2">{interfaces.length} interface{interfaces.length > 1 ? "s" : ""}</summary>
+      <div className="mt-2 rounded-[var(--radius-control)] border border-line overflow-hidden bg-card">
+        <div className={`${IFACE_COLS} py-1.5 bg-card-2 eyebrow`}><span>Interface</span><span>Sensitivity</span><span className="text-right">Link</span></div>
+        <InterfaceRows items={first} base={base} />
+        {rest.length > 0 && <ShowMoreRows count={rest.length}><InterfaceRows items={rest} base={base} /></ShowMoreRows>}
+      </div>
+    </details>
   );
 }

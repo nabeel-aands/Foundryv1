@@ -6,7 +6,8 @@
 import { foundryConfig } from "./config";
 import { SESSION_TTL_SECONDS } from "./identity/session";
 
-const UPDATED = "2 October 2026";
+const { brand } = foundryConfig;
+const UPDATED = brand.legal.updated;
 
 function escape(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -16,12 +17,12 @@ function page(title: string, body: string): Response {
   const org = escape(foundryConfig.client.name);
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Foundry · ${escape(title)}</title>
+<title>${escape(brand.name)} · ${escape(title)}</title>
 <style>
-  body { font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; color: #1b1b1b; background: #faf9f7; margin: 0; }
+  body { font: 16px/1.6 ui-sans-serif, system-ui, sans-serif; color: ${brand.colors.ink}; background: ${brand.colors.paper}; margin: 0; }
   main { max-width: 42rem; margin: 8vh auto; padding: 0 1.5rem 4rem; }
   .mark { display: flex; align-items: center; gap: .5rem; font-weight: 600; }
-  .mark i { width: 14px; height: 14px; border-radius: 3px; background: #f5b400; display: inline-block; }
+  .mark i { width: 14px; height: 14px; border-radius: 3px; background: ${brand.colors.accent}; display: inline-block; }
   h1 { font-size: 1.75rem; margin: 1.5rem 0 .25rem; }
   h2 { font-size: 1.1rem; margin: 2rem 0 .4rem; }
   p, li { color: #444; }
@@ -30,11 +31,11 @@ function page(title: string, body: string): Response {
   footer { margin-top: 3rem; font-size: 14px; color: #8a857c; }
 </style></head>
 <body><main>
-  <div class="mark"><i aria-hidden></i>Foundry</div>
+  <div class="mark">${brand.logo ? `<img src="${escape(brand.logo)}" alt="" height="20">` : "<i aria-hidden></i>"}${escape(brand.name)}</div>
   <h1>${escape(title)}</h1>
   <p class="meta">${org} · Last updated ${UPDATED}</p>
   ${body}
-  <footer><a href="/terms">Terms of service</a> · <a href="/privacy">Privacy policy</a> · <a href="/">Back to Foundry</a></footer>
+  <footer><a href="${escape(brand.legal.termsUrl || "/terms")}">Terms of service</a> · <a href="${escape(brand.legal.privacyUrl || "/privacy")}">Privacy policy</a> · <a href="/">Back to ${escape(brand.name)}</a></footer>
 </main></body></html>`;
   return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600" } });
 }

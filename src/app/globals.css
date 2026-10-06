@@ -29,20 +29,32 @@
   --color-model-bg: #f8e3e8;
   --color-warn: #a85e22;
   --color-warn-bg: #fbebdc;
+  --color-frame: #ece9df;
 }
 
+/* Brand variables (colours, border, radius, display font) are injected on :root from foundry.config brand; these are the fallbacks. */
+:root { --border-color: #17181b; --border-width: 1.5px; --frame-gutter: .375rem; --radius-frame: 16px; --radius-card: 14px; --radius-control: 10px; --radius-chip: 9999px; --radius-pill: 9999px; --font-display: "Space Grotesk", var(--font-sans); }
+
 html { color-scheme: light; }
-body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); }
+body { background: var(--color-frame); padding: var(--frame-gutter); color: var(--color-ink); font-family: var(--font-sans); }
 .mono { font-family: var(--font-mono); }
 .eyebrow { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); }
-.card { background: var(--color-card); border: 1px solid var(--color-line); border-radius: 6px; }
-.btn { display: inline-flex; align-items: center; gap: .4rem; border-radius: 6px; padding: .5rem .85rem; font-size: .875rem; font-weight: 600; border: 1px solid var(--color-ink); background: var(--color-card); color: var(--color-ink); cursor: pointer; }
+.app-frame { min-height: calc(100vh - 2 * var(--frame-gutter)); border: var(--border-width) solid var(--border-color); border-radius: var(--radius-frame); overflow: hidden; background: var(--color-paper); }
+@media (min-width: 768px) { .app-frame { height: calc(100vh - 2 * var(--frame-gutter)); min-height: 0; } }
+h1, h2 { font-family: var(--font-display); }
+h1 { color: #000; font-weight: 700; font-size: 1.875rem; line-height: 1.15; letter-spacing: -0.02em; }
+@media (min-width: 768px) { h1 { font-size: 2.5rem; } }
+.card { background: var(--color-card); border: var(--border-width) solid var(--border-color); border-radius: var(--radius-card); }
+.btn { display: inline-flex; align-items: center; gap: .4rem; border-radius: var(--radius-pill); padding: .5rem .85rem; font-size: .875rem; font-weight: 600; border: 1px solid var(--color-ink); background: var(--color-card); color: var(--color-ink); cursor: pointer; }
 .btn:hover { background: var(--color-card-2); }
-.btn-primary { background: var(--color-amber); border-color: var(--color-amber); }
+.btn-primary { background: var(--color-amber); border-color: var(--color-ink); box-shadow: 3px 3px 0 var(--color-ink); }
 .btn-primary:hover { background: #ffc85c; }
-.btn-ghost { border-color: var(--color-line-2); background: transparent; }
+.btn-ghost { border-color: var(--color-ink); background: transparent; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
-.chip { display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .04em; padding: .22rem .45rem; border-radius: 4px; white-space: nowrap; line-height: 1; }
+.pill { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--color-ink); border-radius: var(--radius-pill); background: var(--color-card); color: var(--color-ink); padding: .375rem .875rem; font-family: var(--font-sans); font-size: 13px; line-height: 1.25; cursor: pointer; }
+.pill:hover { background: var(--color-card-2); }
+.pill-active, .pill-active:hover { background: var(--color-ink); color: #fff; }
+.chip { display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .04em; padding: .22rem .45rem; border-radius: var(--radius-chip); white-space: nowrap; line-height: 1; }
 .chip-real { background: var(--color-real-bg); color: var(--color-real); }
 .chip-seeded, .chip-demo { background: var(--color-seed-bg); color: var(--color-seed); }
 .chip-modelled { background: var(--color-model-bg); color: var(--color-model); }
@@ -50,9 +62,9 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
 .chip-neutral { background: var(--color-card-2); color: var(--color-ink-2); }
 .chip-locked { background: #f1e0e4; color: #9a3c53; }
 .tnum { font-variant-numeric: tabular-nums; }
-input, select, textarea { background: var(--color-card); border: 1px solid var(--color-line-2); border-radius: 6px; padding: .55rem .7rem; font-size: .9rem; color: var(--color-ink); width: 100%; }
+input, select, textarea { background: var(--color-card); border: var(--border-width) solid var(--border-color); border-radius: var(--radius-control); padding: .55rem .7rem; font-size: .9rem; color: var(--color-ink); width: 100%; }
 input:focus, select:focus, textarea:focus, .btn:focus-visible, a:focus-visible { outline: 2px solid var(--color-amber); outline-offset: 2px; }
-.nav-link { display: flex; align-items: center; gap: .6rem; padding: .5rem .75rem; border-radius: 6px; color: var(--color-side-text); font-size: .9rem; }
+.nav-link { display: flex; align-items: center; gap: .6rem; padding: .5rem .75rem; border-radius: var(--radius-pill); color: var(--color-side-text); font-size: .9rem; }
 .nav-link:hover { background: var(--color-side-2); color: #fff; }
 .nav-link[aria-current="page"] { background: var(--color-amber); color: var(--color-ink); font-weight: 600; }
 .nav-link .sq { width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid currentColor; flex: none; }
@@ -61,6 +73,8 @@ table.data { width: 100%; border-collapse: collapse; font-size: .875rem; }
 table.data th { text-align: left; font-family: var(--font-mono); font-size: .66rem; letter-spacing: .07em; text-transform: uppercase; color: var(--color-muted); border-bottom: 1px solid var(--color-line-2); padding: .55rem .6rem; white-space: nowrap; }
 table.data td { padding: .6rem .6rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
 table.data tr:last-child td { border-bottom: none; }
+table.data th.text-right, table.data td.text-right { text-align: right; }
+table.data th.text-center, table.data td.text-center { text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* Info "i" hover: opens on hover and keyboard focus, stays open while the pointer is on it. */

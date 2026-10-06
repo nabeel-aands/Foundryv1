@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AnchoredLink } from "./AnchoredLink";
 import { Chip } from "./Chip";
 import type { LabelKind } from "@/lib/labels";
 
@@ -21,5 +21,5 @@ export function Tile({ label, value, sub, kind = "real", derived, href, open }: 
   );
   const cls = "card p-4 flex flex-col gap-1 min-w-0";
   if (!href) return <div className={cls}>{body}</div>;
-  return <Link href={href} aria-pressed={!!open} className={`${cls} hover:-translate-y-0.5 transition-transform ${open ? "ring-2 ring-ink" : ""}`}>{body}</Link>;
+  return <AnchoredLink href={href} aria-pressed={!!open} className={`${cls} hover:-translate-y-0.5 transition-transform ${open ? "ring-2 ring-ink" : ""}`}>{body}</AnchoredLink>;
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getData, type CatalogItem } from "@/lib/snapshot";
+import { getData, stewardName, type CatalogItem } from "@/lib/snapshot";
+import { SearchBox } from "@/components/SearchBox";
 import { CatalogCard } from "@/components/CatalogCard";
 import { DatasetCard } from "@/components/DatasetCard";
 import { InfoTip } from "@/components/InfoTip";
@@ -20,7 +21,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
 
   const hit = (c: CatalogItem) => !needle || `${c.name} ${c.description ?? ""} ${c.owner ?? ""} ${arr(c.audience).join(" ")} ${c.type ?? ""}`.toLowerCase().includes(needle);
   const items = data.catalogItems.filter(hit);
-  const datasets = data.datasets.filter((d) => !needle || `${d.name} ${d.description ?? ""} ${d.orgUnit ?? ""}`.toLowerCase().includes(needle));
+  const datasets = data.datasets.filter((d) => !needle || `${d.name} ${d.description ?? ""} ${d.orgUnit ?? ""} ${stewardName(d) ?? ""} ${(d.audience ?? []).join(" ")} ${d.status ?? ""}`.toLowerCase().includes(needle));
 
   const tabs = [
     { key: "all", label: "All", n: items.length + datasets.length },
@@ -36,24 +37,20 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const showDatasets = active === "all" || active === "datasets";
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Airtable Library</div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">Reusable pieces, ready to use</h1>
           <p className="text-sm text-ink-2 mt-1">Apps, components, templates and verified datasets. Start here before you build from a blank base.</p>
         </div>
-        <form className="flex gap-2 w-full md:w-96" method="get">
-          <input name="q" defaultValue={q} placeholder="Search the library" aria-label="Search the library" />
-          {active !== "all" && <input type="hidden" name="tab" value={active} />}
-          <button className="btn" type="submit">Search</button>
-        </form>
+        <SearchBox className="w-full md:w-96" label="Search the library" placeholder="Search the library" />
       </div>
 
       <nav className="mt-5 flex flex-wrap gap-2 text-sm" aria-label="Library sections">
         {tabs.map((t) => (
-          <Link key={t.key} href={href(t.key)} className={`px-3 py-1.5 rounded-full border ${active === t.key ? "bg-ink text-white border-ink" : "border-line-2 bg-card hover:bg-card-2"}`}>
-            {t.label} <span className="mono text-xs opacity-70">{t.n}</span>
+          <Link key={t.key} href={href(t.key)} scroll={false} className={`pill ${active === t.key ? "pill-active" : ""}`}>
+            {t.label} <span className="opacity-70">{t.n}</span>
           </Link>
         ))}
       </nav>

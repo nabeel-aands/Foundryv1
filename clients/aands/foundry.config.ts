@@ -8,6 +8,34 @@ export const foundryConfig = {
     shortName: "A&S",
     orgDomains: ["airtable.com", "andsundry.co"],
   },
+  /** Look and legal references. Everything a client re-skins lives here; globals.css only reads the resulting variables. */
+  brand: {
+    name: "Foundry",
+    /** Path under /public (e.g. "/logo.svg"). Empty = a colour square beside the name. */
+    logo: "",
+    colors: {
+      paper: "#f7f6f1", card: "#ffffff", card2: "#efede6",
+      ink: "#17181b", ink2: "#4b4e56", muted: "#7a7d85",
+      line: "#e4e2da", line2: "#cfcdc4",
+      side: "#141416", side2: "#202126", sideText: "#d9d8d2",
+      accent: "#f5b841", accentDeep: "#c9891a", accentSoft: "#fbefd1",
+      sky: "#cfeafb", skyDeep: "#1f6f9a", lilac: "#e5e0f7", lilacDeep: "#5a44a8",
+      /** The page background behind the app frame. */
+      frame: "#ece9df",
+    },
+    /** Black outline used on cards, inputs and the frame. */
+    border: { color: "#17181b", width: "1.5px" },
+    /** Gap between the window edge and the app frame. */
+    gutter: "0.375rem",
+    radius: { frame: "16px", card: "14px", control: "10px", chip: "9999px", pill: "9999px" },
+    fonts: { display: '"Space Grotesk", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif' },
+    legal: {
+      /** Set either to point the footer links at the client's own pages instead of /terms and /privacy. */
+      termsUrl: "",
+      privacyUrl: "",
+      updated: "2 October 2026",
+    },
+  },
   tables: {
     users: "Airtable Users",
     groups: "Airtable Groups",

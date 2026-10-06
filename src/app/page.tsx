@@ -15,16 +15,16 @@ export default async function Home() {
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="eyebrow">{greet}, {me.name.split(" ")[0]}</div>
       <h1 className="text-3xl md:text-4xl font-semibold tracking-tight mt-1">What are you building today?</h1>
       <form action="/build" method="get" className="mt-4 flex gap-2 max-w-2xl">
         <input name="q" placeholder="Describe it in a sentence, or ask what already exists…" aria-label="Describe what you are building" />
         <button className="btn btn-primary" type="submit">Ask</button>
       </form>
-      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+      <div className="mt-3 flex flex-wrap gap-2.5">
         {["What's available to me?", "Who owns supplier data?", "Show me marketing ops apps", "Meal planning"].map((s) => (
-          <Link key={s} href={`/ask?q=${encodeURIComponent(s)}`} className="chip chip-neutral !py-1.5 !px-2.5 !text-[11px] hover:bg-line">{s}</Link>
+          <Link key={s} href={`/ask?q=${encodeURIComponent(s)}`} className="pill">{s}</Link>
         ))}
       </div>
 

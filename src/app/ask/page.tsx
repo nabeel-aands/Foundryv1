@@ -14,7 +14,7 @@ export default async function Ask() {
   const visibleRequests = data.requests.filter((r) => r.title && canSee(r, me)).length;
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="eyebrow">Ask Foundry</div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">What's available to me?</h1>
       <div className="mt-2 mb-4 flex flex-wrap items-center gap-2 text-xs text-muted">

@@ -28,7 +28,7 @@ export default async function AccessAdmin({ searchParams }: { searchParams: Prom
   const name = (ids?: string[]) => displayName(ids?.[0] ? data.userById.get(ids[0]) : undefined);
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="eyebrow">Governance console</div>
       <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">Access requests</h1>
       <p className="text-sm text-ink-2 mt-1">Approve or deny; the grant itself is done by hand in Airtable for now (Grant method: Manual).</p>

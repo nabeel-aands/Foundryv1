@@ -32,7 +32,7 @@ export default async function Resources({ searchParams }: { searchParams: Promis
   const totalMin = all.reduce((n, r) => n + (r.durationMin ?? 0), 0);
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Resources</div>
@@ -52,7 +52,7 @@ export default async function Resources({ searchParams }: { searchParams: Promis
           { k: "docs", bg: "!bg-lilac", title: "Help documentation", body: "Airtable's own docs, picked for how we work." },
           { k: "sessions", bg: "!bg-amber-soft", title: "Live sessions", body: `Kickoffs and office hours with ${foundryConfig.requests.teamLabel}.` },
         ] as const).map((t) => (
-          <Link key={t.k} href={href(t.k)} aria-pressed={kind === t.k} className={`card relative p-5 ${t.bg} hover:-translate-y-0.5 transition-transform ${kind === t.k ? "ring-2 ring-ink" : ""}`}>
+          <Link key={t.k} href={href(t.k)} scroll={false} aria-pressed={kind === t.k} className={`card relative p-5 ${t.bg} hover:-translate-y-0.5 transition-transform ${kind === t.k ? "ring-2 ring-ink" : ""}`}>
             <span className="absolute top-3 right-3 text-lg leading-none font-semibold" aria-hidden>{kind === t.k ? "✕" : "↗"}</span>
             <span className="sr-only">{kind === t.k ? "Clear filter" : "Show only these"}</span>
             <div className="text-3xl font-semibold tnum">{n[t.k]}</div>

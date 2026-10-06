@@ -6,23 +6,29 @@ import { myActiveVotes, rankRequests } from "@/lib/requests";
 import { myRequests, resourceName } from "@/lib/access";
 import { labelForSource } from "@/lib/labels";
 import { Chip } from "@/components/Chip";
+import { MultiSelect } from "@/components/MultiSelect";
 import { retract, vote } from "../actions";
 
-export default async function Roadmap({ searchParams }: { searchParams: Promise<{ useCase?: string; status?: string; msg?: string }> }) {
-  const { useCase = "", status = "", msg } = await searchParams;
+export default async function Roadmap({ searchParams }: { searchParams: Promise<{ useCase?: string | string[]; status?: string | string[]; msg?: string }> }) {
+  const sp = await searchParams;
+  const list = (v?: string | string[]) => (Array.isArray(v) ? v : v ? [v] : []);
+  const useCase = list(sp.useCase);
+  const status = list(sp.status);
+  const msg = sp.msg;
   const data = await getData();
   const me = await getCurrentUser();
-  const ranked = rankRequests(data, me).filter((r) => (!useCase || r.row.useCase === useCase) && (!status || r.row.status === status));
+  const ranked = rankRequests(data, me).filter((r) => (!useCase.length || useCase.includes(r.row.useCase ?? "")) && (!status.length || status.includes(r.row.status ?? "")));
   const used = myActiveVotes(data, me.user).length;
   const left = Math.max(0, foundryConfig.votes.quota - used);
   const mine = data.requests.filter((r) => (r.requester ?? []).includes(me.user.id));
   const myAccess = myRequests(data, me);
   const useCases = [...new Set(data.requests.map((r) => r.useCase).filter(Boolean))] as string[];
   const statuses = [...new Set(data.requests.map((r) => r.status).filter(Boolean))] as string[];
-  const back = `/roadmap${useCase || status ? `?useCase=${encodeURIComponent(useCase)}&status=${encodeURIComponent(status)}` : ""}`;
+  const backQs = new URLSearchParams([...useCase.map((v) => ["useCase", v]), ...status.map((v) => ["status", v])]).toString();
+  const back = `/roadmap${backQs ? `?${backQs}` : ""}`;
 
   return (
-    <div className="max-w-6xl">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="eyebrow">Roadmap</div>
@@ -35,12 +41,11 @@ export default async function Roadmap({ searchParams }: { searchParams: Promise<
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_280px] gap-4 mt-6">
         <div>
-          <form className="flex flex-wrap gap-2 items-center text-sm" method="get">
+          <div className="flex flex-wrap gap-2 items-center text-sm">
             <span className="eyebrow">Filter</span>
-            <select name="useCase" defaultValue={useCase} className="!w-auto !py-1.5"><option value="">All use cases</option>{useCases.map((u) => <option key={u}>{u}</option>)}</select>
-            <select name="status" defaultValue={status} className="!w-auto !py-1.5"><option value="">All statuses</option>{statuses.map((s) => <option key={s}>{s}</option>)}</select>
-            <button className="btn btn-ghost !py-1.5" type="submit">Apply</button>
-          </form>
+            <MultiSelect param="useCase" allLabel="All use cases" options={useCases} selected={useCase} />
+            <MultiSelect param="status" allLabel="All statuses" options={statuses} selected={status} />
+          </div>
           <div className="card mt-3 overflow-x-auto">
             <table className="data">
               <thead><tr><th className="text-right">Rank</th><th>Request</th><th>Use case</th><th>Status</th><th className="text-right">Votes</th><th></th></tr></thead>
