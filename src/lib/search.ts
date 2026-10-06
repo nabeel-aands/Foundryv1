@@ -1,4 +1,4 @@
-import type { Data } from "./snapshot";
+import type { Base, CatalogItem, Data, VerifiedDataset } from "./snapshot";
 import type { Scope } from "./scope";
 
 export type Match = {
@@ -79,4 +79,47 @@ export function searchTraining(data: Data, query: string, limit = 8) {
   return data.trainingResources
     .map((r) => ({ r, s: toks.length ? score(`${r.title ?? ""} ${r.description ?? ""} ${r.topic ?? ""} ${r.format ?? ""} ${r.level ?? ""}`, toks).score : 1 }))
     .filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, limit).map((x) => x.r);
+}
+
+/* ---------- per-section search for the Build flow ---------- */
+
+const CAP = 25;
+const byScore = <T extends { s: number }>(xs: T[]) => xs.filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, CAP);
+
+/** Score of free text against a query's keywords (0 = no match). */
+export function matchScore(text: string, query: string): number {
+  return score(text, tokens(query)).score;
+}
+
+/** Library items: keyword match over name, description, type, owner, audience, use case and related base names. A featured item gets a boost. */
+export function searchLibraryBoosted(data: Data, query: string): CatalogItem[] {
+  const toks = tokens(query);
+  if (!toks.length) return [];
+  return byScore(data.catalogItems.map((c) => {
+    const related = (c.relatedBase ?? []).map((id) => data.baseById.get(id)?.name ?? "").join(" ");
+    const s = score(`${c.name ?? ""} ${c.description ?? ""} ${c.type ?? ""} ${c.owner ?? ""} ${arr(c.audience).join(" ")} ${arr(c.useCase).join(" ")} ${related}`, toks).score;
+    return { c, s: s > 0 && c.featured ? s + 1 : s };
+  })).map((x) => x.c);
+}
+
+export function searchDatasets(data: Data, query: string): VerifiedDataset[] {
+  const toks = tokens(query);
+  if (!toks.length) return [];
+  return byScore(data.datasets.map((d) => ({
+    d, s: score(`${d.name ?? ""} ${d.description ?? ""} ${(d.audience ?? []).join(" ")} ${d.orgUnit ?? ""} ${d.notes ?? ""}`, toks).score + (d.verified ? 0.5 : 0),
+  }))).filter((x) => x.s >= 1).map((x) => x.d);
+}
+
+/** Bases and their interfaces, in or out of the user's scope. Out-of-scope ones are flagged so the UI can offer an access request. */
+export function searchBases(data: Data, scope: Scope, query: string): Match[] {
+  const toks = tokens(query);
+  if (!toks.length) return [];
+  return searchCatalog(data, scope, query, 1000).filter((m) => m.kind === "base" || m.kind === "interface").slice(0, CAP);
+}
+
+/** Workspace owners (as user records) for a base, resolving either a record id or a text workspace id. */
+export function ownersOfBase(data: Data, b: Base) {
+  const key = Array.isArray(b.workspaceId) ? b.workspaceId[0] : b.workspaceId;
+  const ws = key ? data.workspaceById.get(key) ?? data.workspaces.find((w) => w.workspaceId === key) : undefined;
+  return (ws?.owners ?? []).map((id) => data.userById.get(id)).filter((u): u is NonNullable<typeof u> => !!u);
 }

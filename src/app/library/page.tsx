@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { getData, stewardName, type CatalogItem } from "@/lib/snapshot";
-import { Chip } from "@/components/Chip";
+import { getData, type CatalogItem } from "@/lib/snapshot";
+import { CatalogCard } from "@/components/CatalogCard";
+import { DatasetCard } from "@/components/DatasetCard";
 import { InfoTip } from "@/components/InfoTip";
 
 type SP = { q?: string; tab?: string };
 
 const arr = (v: string | string[] | undefined): string[] => (Array.isArray(v) ? v : v ? [v] : []);
-const isUrl = (s?: string) => !!s && /^https?:\/\//i.test(s);
 const PLURAL: Record<string, string> = { "Managed App": "Apps", Component: "Components", Template: "Starter templates", "Integration Pattern": "Integration patterns" };
 const plural = (t: string) => PLURAL[t] ?? `${t}s`;
 const ORDER = ["Managed App", "Component", "Template", "Integration Pattern"];
-const statusKind = (s?: string) => (s === "Available" ? "real" : s === "Beta" ? "warn" : "neutral");
 
 export default async function Library({ searchParams }: { searchParams: Promise<SP> }) {
   const { q = "", tab = "all" } = await searchParams;
@@ -35,27 +34,6 @@ export default async function Library({ searchParams }: { searchParams: Promise<
   const featured = active === "all" && !needle ? shownItems.filter((c) => c.featured) : [];
   const rest = shownItems.filter((c) => !featured.includes(c));
   const showDatasets = active === "all" || active === "datasets";
-
-  const Card = ({ c }: { c: CatalogItem }) => (
-    <div className="card p-4 flex flex-col">
-      <div className="flex flex-wrap items-center gap-2">
-        <Chip kind="neutral">{c.type}</Chip>
-        {c.status && <Chip kind={statusKind(c.status)}>{c.status}</Chip>}
-        {c.featured && <span className="text-xs text-amber-deep" title="Featured">★</span>}
-      </div>
-      <div className="font-semibold mt-2">{c.name}</div>
-      <p className="text-sm text-ink-2 mt-1 flex-1">{c.description}</p>
-      <div className="text-xs text-muted mt-3 flex flex-wrap gap-x-3">
-        {c.owner && <span>Owner · {c.owner}</span>}
-        {arr(c.audience).length > 0 && <span>For · {arr(c.audience).join(", ")}</span>}
-      </div>
-      <div className="mt-3">
-        {isUrl(c.link)
-          ? <a className="btn !text-xs" href={c.link} target="_blank" rel="noreferrer">Open ↗</a>
-          : <button className="btn !text-xs" disabled title="No link has been added to this item in Airtable yet">Link coming soon</button>}
-      </div>
-    </div>
-  );
 
   return (
     <div className="max-w-6xl">
@@ -83,14 +61,14 @@ export default async function Library({ searchParams }: { searchParams: Promise<
       {featured.length > 0 && (
         <section className="mt-6">
           <h2 className="font-semibold">Featured</h2>
-          <div className="grid md:grid-cols-3 gap-3 mt-2">{featured.map((c) => <Card key={c.id} c={c} />)}</div>
+          <div className="grid md:grid-cols-3 gap-3 mt-2">{featured.map((c) => <CatalogCard key={c.id} c={c} />)}</div>
         </section>
       )}
 
       {rest.length > 0 && (
         <section className="mt-6">
           {(featured.length > 0 || active === "all") && <h2 className="font-semibold">{featured.length ? "Everything else" : "Apps, components and templates"}</h2>}
-          <div className="grid md:grid-cols-3 gap-3 mt-2">{rest.map((c) => <Card key={c.id} c={c} />)}</div>
+          <div className="grid md:grid-cols-3 gap-3 mt-2">{rest.map((c) => <CatalogCard key={c.id} c={c} />)}</div>
         </section>
       )}
 
@@ -102,21 +80,7 @@ export default async function Library({ searchParams }: { searchParams: Promise<
             </InfoTip>
           </h2>
           <div className="grid md:grid-cols-3 gap-3 mt-2">
-            {datasets.map((d) => (
-              <div key={d.id} className="card p-4 flex flex-col">
-                <div className="flex items-center gap-2">
-                  {d.verified && <Chip kind="real">Verified</Chip>}
-                  {d.status && <Chip kind="neutral">{d.status}</Chip>}
-                </div>
-                <div className="font-semibold mt-2">{d.name}</div>
-                <p className="text-sm text-ink-2 mt-1 flex-1 line-clamp-3">{d.description}</p>
-                <div className="text-xs text-muted mt-3 flex flex-wrap items-center gap-x-3">
-                  <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${stewardName(d) ? "bg-real" : "bg-line-2"}`} />{stewardName(d) ?? "unowned"}</span>
-                  {d.orgUnit && <span>{d.orgUnit}</span>}
-                  <span>{(d.basesUsing ?? []).length} bases use it</span>
-                </div>
-              </div>
-            ))}
+            {datasets.map((d) => <DatasetCard key={d.id} d={d} />)}
           </div>
         </section>
       )}
