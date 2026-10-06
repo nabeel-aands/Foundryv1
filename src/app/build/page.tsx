@@ -76,12 +76,13 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
                   Your request is split into keywords (filler words dropped). Library items, verified datasets, bases, interfaces and proposals are checked for those words in their name and description. It is a word comparison, not an understanding of meaning, so also scan the lists yourself.
                 </InfoTip></span></div>
 
+            <div className="mt-6 grid xl:grid-cols-2 gap-x-4 gap-y-6 items-start">
             <Section title="From the Airtable Library" hint="Reusable apps, components and templates. Start here before building from a blank base." count={library.length}>
-              <MoreList className="grid md:grid-cols-2 gap-3" items={library.map((c) => <CatalogCard key={c.id} c={c} />)} />
+              <MoreList className="flex flex-col gap-3" items={library.map((c) => <CatalogCard key={c.id} c={c} />)} />
             </Section>
 
             <Section title="Verified datasets" hint="Link a steward-maintained source table instead of copying data." count={datasets.length}>
-              <MoreList className="grid md:grid-cols-2 gap-3" items={datasets.map((d) => (
+              <MoreList className="flex flex-col gap-3" items={datasets.map((d) => (
                 <DatasetCard key={d.id} d={d} action={<Link className="btn !text-xs" href={link({ step: "3", path: diyPath, dataset: d.id, base: "", none: "" })}>Use this</Link>} />
               ))} />
             </Section>
@@ -147,12 +148,14 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
                 </div>
               ))} />
             </Section>
+            </div>
+
             <div className="mt-4 flex gap-2">
               <Link href={link({ step: "1" })} className="btn btn-ghost">← Rephrase</Link>
               <Link href={link({ step: "3", none: "1", base: "", dataset: "", path: "" })} className="btn btn-primary">None of these, pick a path →</Link>
             </div>
           </div>
-          <aside className="card p-4 text-sm">
+          <aside className="card p-4 text-sm self-start max-lg:order-first">
             <div className="eyebrow">Your request</div>
             <p className="mt-2 text-ink-2 whitespace-pre-wrap">{q}</p>
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs"><dt className="text-muted">Org unit</dt><dd>{me.orgUnit.value}</dd><dt className="text-muted">Requester</dt><dd>{me.name}</dd><dt className="text-muted">Matched against</dt><dd>{data.catalogItems.length} library items · {data.datasets.length} datasets · {data.bases.length} bases · {data.interfaces.length} interfaces · {data.requests.length} proposals</dd></dl>
@@ -199,7 +202,7 @@ export default async function Build({ searchParams }: { searchParams: Promise<SP
 
 function Section({ title, hint, count, children }: { title: string; hint: string; count: number; children: React.ReactNode }) {
   return (
-    <section className="mt-6">
+    <section className="min-w-0">
       <h3 className="font-semibold flex items-center gap-2">{title} <span className="mono text-xs text-muted">{count}</span></h3>
       <p className="text-xs text-muted mt-0.5">{hint}</p>
       <div className="mt-2">
