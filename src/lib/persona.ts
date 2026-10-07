@@ -71,7 +71,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   const r = await getIdentity().resolve(data, jar);
   if (r.kind === "denied") throw new AccessDenied(r.reason);
   const mode = authMode();
-  if (r.kind === "anonymous" && (mode === "oidc" || mode === "airtable")) throw new NotSignedIn();
+  if (r.kind === "anonymous" && mode === "oidc") throw new NotSignedIn();
   const user = r.kind === "user" ? r.user : defaultPersona(data);
   if (!user) throw new Error("No users in snapshot. Run npm run sync.");
   return resolveUser(data, user);

@@ -34,21 +34,19 @@ function sessionValid(token: string | undefined, secret: string): boolean {
 
 /**
  * Mirrors authProvider() in lib/identity, deliberately rather than importing it: this runs
- * before the app and may be deployed to an edge that never loaded it. An unrecognised
- * AUTH_PROVIDER gates nothing here, and assertAuthConfig() has already refused to boot.
+ * before the app and may be deployed to an edge that never loaded it. Any AUTH_PROVIDER value
+ * gates here, including the retired "airtable": the app then refuses to boot with a clear message,
+ * which fails closed instead of leaving the site open.
  */
-function gatedProvider(): "airtable" | "oidc" | undefined {
-  const named = process.env.AUTH_PROVIDER?.trim().toLowerCase();
-  if (named === "airtable" || named === "oidc") return named;
-  if (!named && process.env.OIDC_ISSUER?.trim()) return "oidc";
-  return undefined;
+function gated(): boolean {
+  return !!process.env.AUTH_PROVIDER?.trim() || !!process.env.OIDC_ISSUER?.trim();
 }
 
 export function proxy(request: NextRequest): NextResponse {
-  const provider = gatedProvider();
-  if (!provider) return NextResponse.next();
+  if (!gated()) return NextResponse.next();
 
   const { pathname, search } = request.nextUrl;
+
   if (PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, "") || pathname.startsWith(p))) return NextResponse.next();
 
   const secret = process.env.SESSION_SECRET ?? "";
@@ -57,8 +55,10 @@ export function proxy(request: NextRequest): NextResponse {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ ok: false, error: "not signed in" }, { status: 401 });
   }
-  // Airtable mode asks first, with a button; OIDC mode goes straight to the company provider.
-  const login = new URL(provider === "airtable" ? "/auth/signin" : "/auth/login", request.url);
+  // Goes straight to the identity provider; /auth/login sends the person to Google.
+  // Built from APP_URL so the redirect keeps the public host; request.url can name another one.
+  const publicOrigin = process.env.APP_URL?.trim().replace(/\/+$/, "");
+  const login = new URL("/auth/login", publicOrigin || request.url);
   login.searchParams.set("returnTo", `${pathname}${search}`);
   return NextResponse.redirect(login);
 }

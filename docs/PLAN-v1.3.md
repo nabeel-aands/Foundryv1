@@ -1,3 +1,6 @@
+> **Superseded.** Airtable sign-in described below was removed. Sign-in is Google / OpenID Connect only.
+> This plan is kept as a record of the design. See HANDOFF.md section 8b for the current setup.
+
 # Foundry v1.3 build plan: sign in with Airtable
 
 One feature. Written for an implementing agent working in this repo. Read `README.md`, `HANDOFF.md`,

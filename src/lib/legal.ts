@@ -1,6 +1,6 @@
 /**
  * The Terms and Privacy pages. Plain HTML from route handlers, like the sign-in and denial
- * pages, because Airtable's OAuth settings need public URLs and visitors have no session.
+ * pages, because OAuth consent screens link to public URLs and visitors have no session.
  * Wording describes what Foundry actually does; have your own legal team review it.
  */
 import { foundryConfig } from "./config";
@@ -46,7 +46,7 @@ export function termsPage(): Response {
   <p>Foundry is an internal portal run by ${org} for people in its Airtable organisation. It helps you find what already exists, see the roadmap, vote on ideas and submit requests. By signing in you agree to these terms.</p>
 
   <h2>Who may use it</h2>
-  <p>Foundry is for members of this organisation's Airtable account. Signing in with Airtable only proves who you are. Whether you can use Foundry, and what you see, is decided by your row in the organisation's Airtable Users table. If you are not listed, or your account is not active, you cannot sign in.</p>
+  <p>Foundry is for members of this organisation's Airtable account. Signing in with Google only proves who you are. Whether you can use Foundry, and what you see, is decided by your row in the organisation's Airtable Users table. If you are not listed, or your account is not active, you cannot sign in.</p>
 
   <h2>What you can do</h2>
   <ul>
@@ -84,8 +84,8 @@ export function privacyPage(): Response {
   <p>This explains what Foundry, run by ${org}, collects about you and why.</p>
 
   <h2>What we receive when you sign in</h2>
-  <p>You sign in with your Airtable account. Foundry asks Airtable for one permission only: to read your email address. Airtable tells Foundry your Airtable user ID and email. Foundry uses them to find your row in the organisation's Airtable Users table. Foundry does not receive your password, and it cannot read or change your Airtable bases through your account.</p>
-  <p>The access tokens Airtable issues for this step are discarded straight away and are never stored.</p>
+  <p>You sign in with your Google account. Google tells Foundry your email address, whether it is verified, and a Google account identifier, along with your name. Foundry uses the verified email to find your row in the organisation's Airtable Users table. Foundry does not receive your Google password, and it cannot read your Google data or change your Airtable bases through your account.</p>
+  <p>The tokens Google issues for this step are discarded straight away and are never stored.</p>
 
   <h2>What we store</h2>
   <ul>
@@ -93,17 +93,17 @@ export function privacyPage(): Response {
     <li><b>A short-lived sign-in cookie</b> that lasts about 10 minutes while you complete sign-in.</li>
     <li><b>Records you create:</b> requests, votes and access requests are written to the organisation's Airtable base, linked to your user record.</li>
     <li><b>A copy of organisation data</b> from Airtable (users, groups, workspaces, bases and interfaces, plus the library, resources and roadmap tables). It is used to decide what each person sees and is refreshed on a schedule.</li>
-    <li><b>Server logs</b> that may include your Airtable user ID when a sign-in fails. They do not include your email address.</li>
+    <li><b>Server logs</b> that may include your Google account identifier when a sign-in fails. They do not include your email address.</li>
   </ul>
 
   <h2>Who can see it</h2>
   <p>Other members see your name next to requests you submit. Administrators can see the organisation's user list, including names, email addresses and account types, in the governance console. Foundry does not sell your data or use it for advertising.</p>
   ${ai}
   <h2>Where it is processed</h2>
-  <p>Foundry is hosted on Vercel and stores its data copy with Vercel's storage services. Airtable provides sign-in and the underlying data.</p>
+  <p>Foundry is hosted on Vercel and stores its data copy with Vercel's storage services. Google provides sign-in and Airtable provides the underlying data.</p>
 
   <h2>Your choices</h2>
-  <p>You can sign out at any time, which clears the session cookie. You can revoke Foundry's access from the Integrations item of your Airtable account menu. To correct or remove your information, contact the Foundry administrators at ${org}. Records in the organisation's Airtable base are governed by the organisation's own Airtable policies.</p>
+  <p>You can sign out at any time, which clears the session cookie. You can review or remove Foundry's access in your Google account's security settings, under third-party access. To correct or remove your information, contact the Foundry administrators at ${org}. Records in the organisation's Airtable base are governed by the organisation's own Airtable policies.</p>
 
   <h2>Changes</h2>
   <p>We may update this policy and will change the date above when we do.</p>`);

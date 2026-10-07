@@ -53,8 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   try {
     me = await getCurrentUser();
   } catch (e) {
-    // Airtable mode asks first, with a button; OIDC mode goes straight to the company provider.
-    if (e instanceof NotSignedIn) redirect(authMode() === "airtable" ? "/auth/signin" : "/auth/login");
+    if (e instanceof NotSignedIn) redirect("/auth/login");
     if (e instanceof AccessDenied) {
       return (
         <Bare title="Foundry cannot sign you in">
@@ -68,7 +67,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   const mode = authMode();
   const demo = mode === "demo";
-  const signedIn = mode === "airtable" || mode === "oidc";
+  const signedIn = mode === "oidc";
   const toOpt = (u: Data["users"][number]) => ({ id: u.id, label: displayName(u), detail: u.admin ? "admin" : (u.accountType ?? "member").toLowerCase() });
   const nav = [
     { href: "/", label: "Home" },

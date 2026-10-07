@@ -2,7 +2,7 @@
  * Liveness and configuration check. Reads the store only — never calls Airtable — so it is
  * safe to hit from an uptime monitor and safe before the first sync has run.
  */
-import { airtableConfigured, authMode, oidcConfigured } from "@/lib/identity";
+import { authMode, oidcConfigured } from "@/lib/identity";
 import { hasSnapshot } from "@/lib/snapshot";
 import { getStore, kvKind, storeKind } from "@/lib/store";
 import type { Snapshot } from "@/lib/sync";
@@ -11,12 +11,21 @@ import { readWebhookState } from "@/lib/worker";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Health must answer even when the sign-in configuration is invalid; it reports the problem instead. */
+function safeMode(): string {
+  try {
+    return authMode();
+  } catch (e) {
+    return `misconfigured: ${e instanceof Error ? e.message : "invalid sign-in settings"}`;
+  }
+}
+
 export async function GET(): Promise<Response> {
   // `provider` is what is configured, not what is selected: it tells an operator which
   // credentials reached the environment without echoing any of their values.
   const base = {
-    store: storeKind(), kv: kvKind(), mode: authMode(),
-    provider: { airtable: airtableConfigured(), oidc: oidcConfigured() },
+    store: storeKind(), kv: kvKind(), mode: safeMode(),
+    provider: { oidc: oidcConfigured() },
   };
 
   if (!(await hasSnapshot())) {

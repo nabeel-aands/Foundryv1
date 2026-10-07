@@ -23,10 +23,8 @@ npm run dev                 # http://127.0.0.1:3000
 
 Foundry also runs on Vercel with no persistent disk: Vercel Blob holds the snapshot, schema and
 webhook state, Redis holds conversations, rate limits and the sync lock, and the two crons in
-`vercel.json` replace the background timers. Sign-in is one of two providers, chosen by
-`AUTH_PROVIDER`: **Sign in with Airtable** (the Airtable user ID is matched to a row in the synced
-Users table) or **OIDC** against the company identity provider (the verified email is matched
-instead). Either way that row is the session, and Foundry stores no provider tokens. `HANDOFF.md`
+`vercel.json` replace the background timers. Sign-in uses Google (or any OpenID Connect provider): the verified email is matched to a row in the
+synced Users table, that row is the session, and Foundry stores no provider tokens. `HANDOFF.md`
 has the step-by-step, including the one curl that seeds the first snapshot.
 
 ## What is where

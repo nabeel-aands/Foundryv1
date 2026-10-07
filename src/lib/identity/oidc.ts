@@ -35,7 +35,8 @@ export async function oidcConfig(): Promise<OidcConfig> {
 
 export type AuthorizationRequest = { url: string; state?: string; codeVerifier: string };
 
-export async function buildAuthorizationRequest(): Promise<AuthorizationRequest> {
+/** `select_account` asks the provider to show its account chooser instead of reusing the signed-in account. */
+export async function buildAuthorizationRequest(opts: { prompt?: "select_account" } = {}): Promise<AuthorizationRequest> {
   const client = await lib();
   const config = await oidcConfig();
   const codeVerifier = client.randomPKCECodeVerifier();
@@ -46,6 +47,7 @@ export async function buildAuthorizationRequest(): Promise<AuthorizationRequest>
     scope: oidcScope(),
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
+    ...(opts.prompt ? { prompt: opts.prompt } : {}),
   };
   // PKCE alone is enough where the provider advertises it; otherwise state carries the CSRF binding.
   const state = config.serverMetadata().supportsPKCE() ? undefined : client.randomState();

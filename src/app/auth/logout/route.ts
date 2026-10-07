@@ -1,7 +1,7 @@
 /** Clear the session, then hand off to the provider's end-session endpoint when it has one. */
+import { publicBase } from "@/lib/identity/urls";
 import { cookies } from "next/headers";
 import { authMode } from "@/lib/identity";
-import * as airtable from "@/lib/identity/airtable";
 import * as oidc from "@/lib/identity/oidc";
 import { clearLoginState, clearSession } from "@/lib/identity/session";
 
@@ -13,9 +13,8 @@ async function signOut(request: Request): Promise<Response> {
   const jar = await cookies();
   clearSession(jar);
   clearLoginState(jar);
-  const home = new URL("/", request.url).href;
-  // Airtable has no end-session endpoint, so signing out here is local and lands back on Home.
-  if (mode === "airtable") return Response.redirect(airtable.logoutUrl() ?? home, 302);
+  // Land on a signed-out page, not Home: Home would send the person straight back to a provider they are still signed in to.
+  const home = new URL("/auth/signed-out", publicBase(request.url)).href;
   if (mode !== "oidc") return Response.redirect(home, 302);
   const provider = await oidc.endSessionUrl().catch(() => undefined);
   return Response.redirect(provider ?? home, 302);
