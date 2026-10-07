@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 
 /** Only same-origin paths, so a crafted link cannot bounce someone off-site after login. */
 function safeReturnTo(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  // Browsers treat a backslash like a slash, so "/\\evil.com" is as off-site as "//evil.com".
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
   return raw;
 }
 

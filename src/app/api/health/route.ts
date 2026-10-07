@@ -16,7 +16,8 @@ function safeMode(): string {
   try {
     return authMode();
   } catch (e) {
-    return `misconfigured: ${e instanceof Error ? e.message : "invalid sign-in settings"}`;
+    console.error(`[health] sign-in settings invalid: ${e instanceof Error ? e.message : e}`);
+    return "misconfigured";
   }
 }
 
@@ -40,7 +41,7 @@ export async function GET(): Promise<Response> {
   const state = await readWebhookState().catch(() => undefined);
   const expiresAt = state?.expirationTime ?? null;
   const webhook = state
-    ? { id: state.webhookId, expiresAt, expired: expiresAt ? new Date(expiresAt).getTime() < Date.now() : false }
+    ? { expiresAt, expired: expiresAt ? new Date(expiresAt).getTime() < Date.now() : false }
     : null;
 
   return Response.json({ ok: true, fetchedAt, ageSeconds, counts: snap?.counts ?? {}, webhook, ...base });

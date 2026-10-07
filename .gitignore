@@ -7,4 +7,3 @@ data/
 .DS_Store
 *.log
 tsconfig.tsbuildinfo
-package-lock.json
